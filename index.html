@@ -88,6 +88,12 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
       <p class="err" id="eAju" role="alert"></p>
       <button id="bAju" type="submit" form="fAju">Ajukan izin</button>
     </div>
+    <div id="vDok" class="card hidden">
+      <button class="lain" id="bKembali" type="button">Kembali ke daftar</button>
+      <h2 id="dJudul" style="margin-top:16px"></h2><p class="sub" id="dInfo"></p>
+      <div id="dSyarat"></div><p class="err" id="eDok" role="alert"></p>
+      <button id="bKirim" type="button">Kirim ke HSE</button>
+    </div>
     <div id="vKon" class="hidden">
       <div class="card" style="margin-bottom:16px"><h2>Tambah kontraktor</h2>
         <form id="fKon" class="grid">
@@ -151,13 +157,13 @@ function keluar(paksa) {
 function tabel(kolom, baris) {
   if (!baris.length) return '';
   return '<div class="scroll"><table><thead><tr>' + kolom.map(k => '<th>' + k[0] + '</th>').join('') + '</tr></thead><tbody>' +
-    baris.map(b => '<tr>' + kolom.map(k => '<td>' + esc(k[2] ? k[2](b[k[1]]) : b[k[1]]) + '</td>').join('') + '</tr>').join('') +
+    baris.map(b => '<tr>' + kolom.map(k => '<td>' + (k[3] ? k[2](b[k[1]], b) : esc(k[2] ? k[2](b[k[1]]) : b[k[1]])) + '</td>').join('') + '</tr>').join('') +
     '</tbody></table></div>';
 }
 
 async function muatIzin() {
   const d = await api('permits.list');
-  $('#tIzin').innerHTML = tabel([['No. izin','NoIzin'],['Jenis','JenisIzin'],['Lokasi','Lokasi'],['Mulai','TglMulai',tgl],['Selesai','TglSelesai',tgl],['Status','Status']], d)
+  $('#tIzin').innerHTML = tabel([['No. izin','NoIzin',n => n || '(belum bernomor)'],['Jenis','JenisIzin'],['Lokasi','Lokasi'],['Mulai','TglMulai',tgl],['Selesai','TglSelesai',tgl],['Status','Status'],['','ID',id => '<button class="lain" data-doc="' + esc(id) + '">Dokumen</button>',1]], d)
     || '<p class="kosong">Belum ada izin kerja. Form pengajuan dibuka di tahap berikutnya.</p>';
 }
 async function muatUser() {
@@ -167,9 +173,9 @@ async function muatUser() {
 }
 
 function tampil(v) {
-  ['Izin','Aju','Kon','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
+  ['Izin','Aju','Dok','Kon','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
   document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === v));
-  ({Izin:muatIzin,Aju:muatAju,Kon:muatKon,User:muatUser}[v])().catch(e => alert(e.message));
+  ({Izin:muatIzin,Aju:muatAju,Dok:muatDok,Kon:muatKon,User:muatUser}[v])().catch(e => alert(e.message));
 }
 
 async function mulai(d) {
@@ -192,6 +198,56 @@ async function mulai(d) {
   tampil('Izin');
 }
 
+let permitId = null;
+function bukaDok(id) { permitId = id; tampil('Dok'); }
+const baca = blob => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => gagal(new Error('File tidak bisa dibaca')); r.readAsDataURL(blob); });
+async function siapFile(f) {  // Foto dikecilkan di browser (maks. 1600 px) agar unggahan ringan
+  if (f.type === 'application/pdf') { if (f.size > 5e6) throw new Error('PDF melebihi 5 MB. Perkecil ukurannya dulu.'); return {mime:f.type, data: await baca(f)}; }
+  if (!/^image\/(jpeg|png)$/.test(f.type)) throw new Error('Format file harus PDF, JPG, atau PNG');
+  const bmp = await createImageBitmap(f), s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', .8));
+  return {mime:'image/jpeg', data: await baca(blob)};
+}
+async function muatDok() {
+  const d = await api('dokumen.list', {permitId});
+  const boleh = user.peran === 'PENGAWAS' && ['Draft','Revisi'].includes(d.status);
+  $('#dJudul').textContent = d.noIzin || 'Izin belum bernomor';
+  $('#dInfo').textContent = 'Status: ' + d.status + '. Format PDF, JPG, atau PNG, maksimal 5 MB per file.' + (boleh ? ' Nomor izin diberikan saat izin dikirim ke HSE.' : '');
+  $('#dSyarat').innerHTML = '<div class="scroll"><table><thead><tr><th>Dokumen</th><th>File</th><th></th></tr></thead><tbody>' + d.syarat.map(s => {
+    const f = d.dok.find(x => x.Jenis === s.kode);
+    return '<tr><td>' + esc(s.label) + (s.wajib ? ' (wajib)' : '') + '</td><td>' + (f ? '<button class="lain" data-buka="' + esc(f.ID) + '">' + esc(f.Nama) + '</button>' : (s.wajib ? 'Belum ada' : '-')) + '</td><td>' +
+      (boleh ? '<input type="file" accept="application/pdf,image/jpeg,image/png" data-up="' + s.kode + '" aria-label="Unggah ' + esc(s.label) + '">' : '') + '</td></tr>';
+  }).join('') + '</tbody></table></div>';
+  $('#bKirim').classList.toggle('hidden', !boleh);
+}
+$('#dSyarat').onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f || !e.target.dataset.up) return;
+  $('#eDok').textContent = 'Mengunggah...';
+  try {
+    const b = await siapFile(f);
+    await api('dokumen.upload', {permitId, jenis:e.target.dataset.up, nama:f.name, mime:b.mime, data:b.data});
+    $('#eDok').textContent = ''; await muatDok();
+  } catch (err) { $('#eDok').textContent = err.message; }
+};
+$('#dSyarat').onclick = async e => {
+  const id = e.target.dataset.buka; if (!id) return;
+  try {
+    const d = await api('dokumen.ambil', {id}), bin = atob(d.data), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    window.open(URL.createObjectURL(new Blob([a], {type:d.mime})), '_blank');
+  } catch (err) { $('#eDok').textContent = err.message; }
+};
+$('#bKirim').onclick = async () => {
+  $('#eDok').textContent = ''; $('#bKirim').disabled = true;
+  try { const no = await api('permits.submit', {permitId}); alert('Izin dikirim ke HSE. Nomor izin: ' + no); tampil('Izin'); }
+  catch (err) { $('#eDok').textContent = err.message; }
+  $('#bKirim').disabled = false;
+};
+$('#bKembali').onclick = () => tampil('Izin');
+$('#tIzin').onclick = e => e.target.dataset.doc && bukaDok(e.target.dataset.doc);
 let kon = null;
 async function muatAju() {
   if (!$('#cek').innerHTML) {
@@ -217,9 +273,9 @@ $('#fAju').onsubmit = async e => {
   const cek = {C:[],D:[],E:[],F:[]}, v = id => $('#' + id).value;
   e.target.querySelectorAll('input[data-b]:checked').forEach(i => cek[i.dataset.b].push(i.value));
   try {
-    const no = await api('permits.create', {perusahaan:v('aPt'), jenis:v('aJenis'), project:v('aProj'), lokasi:v('aLok'), lat:v('aLat'), lng:v('aLng'),
+    const id = await api('permits.create', {perusahaan:v('aPt'), jenis:v('aJenis'), project:v('aProj'), lokasi:v('aLok'), lat:v('aLat'), lng:v('aLng'),
       jumlah:v('aJml'), tglMulai:v('aMul'), tglSelesai:v('aSel'), shift:v('aShift'), deskripsi:v('aDesk'), peralatan:v('aAlat'), cek});
-    e.target.reset(); tampil('Izin'); alert('Izin diajukan. Nomor izin: ' + no);
+    e.target.reset(); bukaDok(id);
   } catch (err) { $('#eAju').textContent = err.message; }
   $('#bAju').disabled = false;
 };
