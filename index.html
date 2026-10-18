@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Izin Kerja Khusus - Priamanaya Group</title>
+<style>
+:root{--bg:#eef0f1;--panel:#fff;--ink:#14232b;--muted:#5b6b73;--line:#d3d9dc;--hv:#f5c400;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1a20;--panel:#172831;--ink:#e8eef0;--muted:#9fb0b8;--line:#2b414c;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.stripe{height:12px;background:repeating-linear-gradient(-45deg,var(--hv) 0 14px,#14232b 14px 28px)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px}
+#login{max-width:380px;margin:12vh auto 0;padding:0 16px}
+#login .card{padding:0;overflow:hidden}#login form{padding:20px}
+h1{font-size:1.25rem;margin:0 0 4px}h2{font-size:1.1rem;margin:0 0 12px}
+p.sub{margin:0 0 16px;color:var(--muted)}
+label{display:block;font-weight:600;margin:12px 0 4px}
+input,select{width:100%;min-height:44px;padding:8px 10px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:4px}
+button{min-height:44px;padding:8px 18px;font:inherit;font-weight:600;border:0;border-radius:4px;background:var(--ink);color:var(--bg);cursor:pointer}
+button.lain{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.6}
+:focus-visible{outline:3px solid var(--hv);outline-offset:2px}
+.err{color:var(--err);min-height:1.5em;margin:10px 0 0}
+header{background:var(--panel);border-bottom:1px solid var(--line)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:10px 16px;max-width:980px;margin:0 auto}
+.bar small{color:var(--muted);display:block}
+nav{display:flex;gap:4px;max-width:980px;margin:0 auto;padding:0 12px}
+nav button{background:none;color:var(--muted);border-radius:0;border-bottom:3px solid transparent}
+nav button[aria-current=true]{color:var(--ink);border-color:var(--hv)}
+main{max-width:980px;margin:16px auto;padding:0 16px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+.kosong{color:var(--muted);padding:12px 0}
+.grid{display:grid;gap:0 16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<section id="login">
+  <div class="card">
+    <div class="stripe"></div>
+    <form id="fLogin">
+      <h1>Izin Kerja Khusus</h1>
+      <p class="sub">Priamanaya Group</p>
+      <label for="un">Username</label><input id="un" autocomplete="username" required>
+      <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required>
+      <p class="err" id="eLogin" role="alert"></p>
+      <button id="bLogin" type="submit">Masuk</button>
+    </form>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <div class="stripe"></div>
+  <header>
+    <div class="bar">
+      <div><strong id="nama"></strong><small id="info"></small></div>
+      <button class="lain" id="bKeluar" type="button">Keluar</button>
+    </div>
+    <nav id="nav"></nav>
+  </header>
+  <main>
+    <div id="vIzin" class="card"><h2>Daftar izin kerja</h2><div id="tIzin"></div></div>
+    <div id="vUser" class="hidden">
+      <div class="card" style="margin-bottom:16px">
+        <h2>Tambah pengguna</h2>
+        <form id="fUser" class="grid">
+          <div><label for="uUn">Username</label><input id="uUn" required></div>
+          <div><label for="uNama">Nama lengkap</label><input id="uNama" required></div>
+          <div><label for="uPw">Password awal</label><input id="uPw" type="password" minlength="8" required></div>
+          <div><label for="uPeran">Peran</label><select id="uPeran"></select></div>
+          <div><label for="uPt">Perusahaan</label><select id="uPt"></select></div>
+        </form>
+        <p class="err" id="eUser" role="alert"></p>
+        <button id="bUser" type="submit" form="fUser">Simpan pengguna</button>
+      </div>
+      <div class="card"><h2>Pengguna</h2><div id="tUser"></div></div>
+    </div>
+  </main>
+</section>
+
+<script>
+// Isi dengan URL Web App Apps Script (berakhiran /exec)
+const API_URL = 'GANTI_DENGAN_URL_WEB_APP';
+const LABEL = {ADMIN_GROUP:'Admin Group',ADMIN:'Admin Perusahaan',HSE:'HSE',KTT:'Kepala Teknik Tambang',PENGAWAS:'Pengawas',GROUP_VIEWER:'Pemantau Group'};
+const $ = s => document.querySelector(s);
+let token = null, user = null, ref = null;
+try { token = sessionStorage.getItem('t'); } catch (e) {}
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tgl = v => v ? String(v).slice(0, 10) : '';
+
+// Body dikirim sebagai teks biasa agar browser tidak membuat preflight CORS
+async function api(aksi, data) {
+  const r = await fetch(API_URL, {method:'POST', body:JSON.stringify(Object.assign({aksi, token}, data))});
+  const j = await r.json();
+  if (!j.ok) { if (/Sesi/.test(j.error)) keluar(true); throw new Error(j.error); }
+  return j.data;
+}
+function simpanToken(t) { token = t; try { t ? sessionStorage.setItem('t', t) : sessionStorage.removeItem('t'); } catch (e) {} }
+function keluar(paksa) {
+  simpanToken(null); user = null;
+  $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
+  if (paksa) $('#eLogin').textContent = 'Sesi berakhir, silakan masuk lagi.';
+}
+
+function tabel(kolom, baris) {
+  if (!baris.length) return '';
+  return '<div class="scroll"><table><thead><tr>' + kolom.map(k => '<th>' + k[0] + '</th>').join('') + '</tr></thead><tbody>' +
+    baris.map(b => '<tr>' + kolom.map(k => '<td>' + esc(k[2] ? k[2](b[k[1]]) : b[k[1]]) + '</td>').join('') + '</tr>').join('') +
+    '</tbody></table></div>';
+}
+
+async function muatIzin() {
+  const d = await api('permits.list');
+  $('#tIzin').innerHTML = tabel([['No. izin','NoIzin'],['Jenis','JenisIzin'],['Lokasi','Lokasi'],['Mulai','TglMulai',tgl],['Selesai','TglSelesai',tgl],['Status','Status']], d)
+    || '<p class="kosong">Belum ada izin kerja. Form pengajuan dibuka di tahap berikutnya.</p>';
+}
+async function muatUser() {
+  const d = await api('users.list');
+  $('#tUser').innerHTML = tabel([['Username','Username'],['Nama','Nama'],['Peran','Peran',p => LABEL[p] || p],['Perusahaan','Perusahaan_ID',p => p || 'Group'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d);
+}
+
+function tampil(v) {
+  ['Izin','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
+  document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === v));
+  (v === 'Izin' ? muatIzin : muatUser)().catch(e => alert(e.message));
+}
+
+async function mulai(d) {
+  user = d;
+  $('#nama').textContent = d.nama;
+  $('#info').textContent = (LABEL[d.peran] || d.peran) + ' - ' + d.perusahaanNama;
+  const menu = [['Izin','Izin kerja']];
+  if (d.peran === 'ADMIN' || d.peran === 'ADMIN_GROUP') {
+    menu.push(['User','Pengguna']);
+    ref = ref || await api('ref');
+    $('#uPeran').innerHTML = ref.peran.filter(p => d.peran === 'ADMIN_GROUP' || ['HSE','KTT','PENGAWAS'].includes(p)).map(p => '<option value="' + p + '">' + esc(LABEL[p]) + '</option>').join('');
+    $('#uPt').innerHTML = ref.perusahaan.filter(p => d.peran === 'ADMIN_GROUP' || p.ID === d.perusahaan).map(p => '<option value="' + esc(p.ID) + '">' + esc(p.Nama) + '</option>').join('');
+  }
+  $('#nav').innerHTML = menu.map(m => '<button type="button" data-v="' + m[0] + '">' + m[1] + '</button>').join('');
+  $('#nav').onclick = e => e.target.dataset.v && tampil(e.target.dataset.v);
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  tampil('Izin');
+}
+
+$('#fLogin').onsubmit = async e => {
+  e.preventDefault(); $('#eLogin').textContent = ''; $('#bLogin').disabled = true;
+  try {
+    const d = await api('login', {username:$('#un').value, password:$('#pw').value});
+    simpanToken(d.token); $('#pw').value = ''; await mulai(d.user);
+  } catch (err) { $('#eLogin').textContent = err.message; }
+  $('#bLogin').disabled = false;
+};
+$('#fUser').onsubmit = async e => {
+  e.preventDefault(); $('#eUser').textContent = ''; $('#bUser').disabled = true;
+  try {
+    await api('users.create', {username:$('#uUn').value, nama:$('#uNama').value, password:$('#uPw').value, peran:$('#uPeran').value, perusahaan:$('#uPt').value});
+    e.target.reset(); await muatUser();
+  } catch (err) { $('#eUser').textContent = err.message; }
+  $('#bUser').disabled = false;
+};
+$('#bKeluar').onclick = () => keluar(false);
+
+if (token) api('me').then(mulai).catch(() => keluar(false));
+</script>
+</body>
+</html>
