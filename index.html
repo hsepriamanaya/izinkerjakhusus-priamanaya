@@ -16,7 +16,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-app
 h1{font-size:1.25rem;margin:0 0 4px}h2{font-size:1.1rem;margin:0 0 12px}
 p.sub{margin:0 0 16px;color:var(--muted)}
 label{display:block;font-weight:600;margin:12px 0 4px}
-input,select{width:100%;min-height:44px;padding:8px 10px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:4px}
+input,select,textarea{width:100%;min-height:44px;padding:8px 10px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:4px}
 button{min-height:44px;padding:8px 18px;font:inherit;font-weight:600;border:0;border-radius:4px;background:var(--ink);color:var(--bg);cursor:pointer}
 button.lain{background:transparent;color:var(--ink);border:1px solid var(--line)}
 button:disabled{opacity:.6}
@@ -35,6 +35,8 @@ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
 th{color:var(--muted);font-weight:600}
 .kosong{color:var(--muted);padding:12px 0}
 .grid{display:grid;gap:0 16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.cb{display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0}.cb input{width:auto;min-height:0}
+fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8px 12px}legend{font-weight:600;padding:0 6px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -65,6 +67,40 @@ th{color:var(--muted);font-weight:600}
   </header>
   <main>
     <div id="vIzin" class="card"><h2>Daftar izin kerja</h2><div id="tIzin"></div></div>
+    <div id="vAju" class="card hidden"><h2>Ajukan izin kerja</h2>
+      <form id="fAju">
+        <div class="grid">
+          <div id="wPt" class="hidden"><label for="aPt">Perusahaan tujuan</label><select id="aPt"></select></div>
+          <div><label for="aJenis">Jenis izin</label><select id="aJenis"></select></div>
+          <div><label for="aProj">Nama project</label><input id="aProj" required></div>
+          <div><label for="aLok">Lokasi kerja</label><input id="aLok" required></div>
+          <div><label for="aLat">Latitude (opsional)</label><input id="aLat" inputmode="decimal"></div>
+          <div><label for="aLng">Longitude (opsional)</label><input id="aLng" inputmode="decimal"></div>
+          <div><label for="aJml">Jumlah pekerja</label><input id="aJml" type="number" min="1" required></div>
+          <div><label for="aShift">Shift pelaksanaan</label><input id="aShift" placeholder="mis. Shift 1" required></div>
+          <div><label for="aMul">Tanggal mulai</label><input id="aMul" type="date" required></div>
+          <div><label for="aSel">Tanggal selesai (maks. 7 hari)</label><input id="aSel" type="date" required></div>
+        </div>
+        <label for="aDesk">Deskripsi kerja</label><textarea id="aDesk" rows="3" placeholder="mis. pengelasan dengan menggunakan gas asetilin" required></textarea>
+        <label for="aAlat">Jenis peralatan yang digunakan</label><input id="aAlat">
+        <div id="cek"></div>
+      </form>
+      <p class="err" id="eAju" role="alert"></p>
+      <button id="bAju" type="submit" form="fAju">Ajukan izin</button>
+    </div>
+    <div id="vKon" class="hidden">
+      <div class="card" style="margin-bottom:16px"><h2>Tambah kontraktor</h2>
+        <form id="fKon" class="grid">
+          <div><label for="kNama">Nama kontraktor</label><input id="kNama" required></div>
+          <div><label for="kIujp">Nomor IUJP</label><input id="kIujp" required></div>
+          <div><label for="kBer">IUJP berlaku sampai</label><input id="kBer" type="date" required></div>
+          <div><label>Ditunjuk untuk</label><div id="kPt"></div></div>
+        </form>
+        <p class="err" id="eKon" role="alert"></p>
+        <button id="bKon" type="submit" form="fKon">Simpan kontraktor</button>
+      </div>
+      <div class="card"><h2>Kontraktor dan IUJP</h2><div id="tKon"></div></div>
+    </div>
     <div id="vUser" class="hidden">
       <div class="card" style="margin-bottom:16px">
         <h2>Tambah pengguna</h2>
@@ -74,6 +110,7 @@ th{color:var(--muted);font-weight:600}
           <div><label for="uPw">Password awal</label><input id="uPw" type="password" minlength="8" required></div>
           <div><label for="uPeran">Peran</label><select id="uPeran"></select></div>
           <div><label for="uPt">Perusahaan</label><select id="uPt"></select></div>
+          <div><label for="uKon">Kontraktor (untuk pengawas kontraktor)</label><select id="uKon"></select></div>
         </form>
         <p class="err" id="eUser" role="alert"></p>
         <button id="bUser" type="submit" form="fUser">Simpan pengguna</button>
@@ -97,7 +134,10 @@ const tgl = v => v ? String(v).slice(0, 10) : '';
 // Body dikirim sebagai teks biasa agar browser tidak membuat preflight CORS
 async function api(aksi, data) {
   const r = await fetch(API_URL, {method:'POST', body:JSON.stringify(Object.assign({aksi, token}, data))});
-  const j = await r.json();
+  const teks = await r.text();
+  let j;
+  try { j = JSON.parse(teks); }
+  catch (e) { throw new Error('API tidak menjawab dengan benar (kode ' + r.status + '). Periksa API_URL dan akses Web App.'); }
   if (!j.ok) { if (/Sesi/.test(j.error)) keluar(true); throw new Error(j.error); }
   return j.data;
 }
@@ -121,14 +161,15 @@ async function muatIzin() {
     || '<p class="kosong">Belum ada izin kerja. Form pengajuan dibuka di tahap berikutnya.</p>';
 }
 async function muatUser() {
-  const d = await api('users.list');
+  const d = await api('users.list'), k = await api('kontraktor.list');
+  $('#uKon').innerHTML = '<option value="">Bukan kontraktor</option>' + k.map(x => '<option value="' + esc(x.ID) + '">' + esc(x.Nama) + '</option>').join('');
   $('#tUser').innerHTML = tabel([['Username','Username'],['Nama','Nama'],['Peran','Peran',p => LABEL[p] || p],['Perusahaan','Perusahaan_ID',p => p || 'Group'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d);
 }
 
 function tampil(v) {
-  ['Izin','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
+  ['Izin','Aju','Kon','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
   document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === v));
-  (v === 'Izin' ? muatIzin : muatUser)().catch(e => alert(e.message));
+  ({Izin:muatIzin,Aju:muatAju,Kon:muatKon,User:muatUser}[v])().catch(e => alert(e.message));
 }
 
 async function mulai(d) {
@@ -136,6 +177,9 @@ async function mulai(d) {
   $('#nama').textContent = d.nama;
   $('#info').textContent = (LABEL[d.peran] || d.peran) + ' - ' + d.perusahaanNama;
   const menu = [['Izin','Izin kerja']];
+  ref = ref || await api('ref');
+  if (d.peran === 'PENGAWAS') menu.push(['Aju','Ajukan izin']);
+  if (['ADMIN_GROUP','ADMIN','HSE'].includes(d.peran)) menu.push(['Kon','Kontraktor']);
   if (d.peran === 'ADMIN' || d.peran === 'ADMIN_GROUP') {
     menu.push(['User','Pengguna']);
     ref = ref || await api('ref');
@@ -148,6 +192,44 @@ async function mulai(d) {
   tampil('Izin');
 }
 
+let kon = null;
+async function muatAju() {
+  if (!$('#cek').innerHTML) {
+    const N = {C:'Kegiatan terkait',D:'Bahaya yang mungkin terjadi',E:'Tindakan pencegahan',F:'Alat pelindung diri'};
+    $('#cek').innerHTML = Object.keys(N).map(k => '<fieldset><legend>' + N[k] + '</legend><div class="grid">' +
+      ref.cek[k].map(i => '<label class="cb"><input type="checkbox" data-b="' + k + '" value="' + esc(i) + '"> ' + esc(i) + '</label>').join('') + '</div></fieldset>').join('');
+    $('#aJenis').innerHTML = ref.jenis.map(j => '<option value="' + esc(j[0]) + '">' + esc(j[1]) + '</option>').join('');
+  }
+  const k = await api('kontraktor.list');
+  kon = user.kontraktor ? k[0] : null;
+  const ids = kon ? String(kon.Perusahaan_IDs).split(',').map(s => s.trim()) : [user.perusahaan];
+  $('#aPt').innerHTML = ref.perusahaan.filter(p => ids.includes(p.ID)).map(p => '<option value="' + esc(p.ID) + '">' + esc(p.Nama) + '</option>').join('');
+  $('#wPt').classList.toggle('hidden', ids.length < 2);
+}
+async function muatKon() {
+  const d = await api('kontraktor.list');
+  $('#tKon').innerHTML = tabel([['Kontraktor','Nama'],['No. IUJP','IUJP_No'],['IUJP berlaku s.d.','IUJP_Berlaku'],['Perusahaan','Perusahaan_IDs'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d) || '<p class="kosong">Belum ada kontraktor.</p>';
+  const pts = ref.perusahaan.filter(p => user.peran === 'ADMIN_GROUP' || p.ID === user.perusahaan);
+  $('#kPt').innerHTML = pts.map(p => '<label class="cb"><input type="checkbox" value="' + esc(p.ID) + '"' + (pts.length === 1 ? ' checked' : '') + '> ' + esc(p.Nama) + '</label>').join('');
+}
+$('#fAju').onsubmit = async e => {
+  e.preventDefault(); $('#eAju').textContent = ''; $('#bAju').disabled = true;
+  const cek = {C:[],D:[],E:[],F:[]}, v = id => $('#' + id).value;
+  e.target.querySelectorAll('input[data-b]:checked').forEach(i => cek[i.dataset.b].push(i.value));
+  try {
+    const no = await api('permits.create', {perusahaan:v('aPt'), jenis:v('aJenis'), project:v('aProj'), lokasi:v('aLok'), lat:v('aLat'), lng:v('aLng'),
+      jumlah:v('aJml'), tglMulai:v('aMul'), tglSelesai:v('aSel'), shift:v('aShift'), deskripsi:v('aDesk'), peralatan:v('aAlat'), cek});
+    e.target.reset(); tampil('Izin'); alert('Izin diajukan. Nomor izin: ' + no);
+  } catch (err) { $('#eAju').textContent = err.message; }
+  $('#bAju').disabled = false;
+};
+$('#fKon').onsubmit = async e => {
+  e.preventDefault(); $('#eKon').textContent = ''; $('#bKon').disabled = true;
+  const pts = [...$('#kPt').querySelectorAll('input:checked')].map(i => i.value).join(',');
+  try { await api('kontraktor.save', {nama:$('#kNama').value, iujp:$('#kIujp').value, berlaku:$('#kBer').value, perusahaan:pts}); e.target.reset(); await muatKon(); }
+  catch (err) { $('#eKon').textContent = err.message; }
+  $('#bKon').disabled = false;
+};
 $('#fLogin').onsubmit = async e => {
   e.preventDefault(); $('#eLogin').textContent = ''; $('#bLogin').disabled = true;
   try {
@@ -159,7 +241,7 @@ $('#fLogin').onsubmit = async e => {
 $('#fUser').onsubmit = async e => {
   e.preventDefault(); $('#eUser').textContent = ''; $('#bUser').disabled = true;
   try {
-    await api('users.create', {username:$('#uUn').value, nama:$('#uNama').value, password:$('#uPw').value, peran:$('#uPeran').value, perusahaan:$('#uPt').value});
+    await api('users.create', {username:$('#uUn').value, nama:$('#uNama').value, password:$('#uPw').value, peran:$('#uPeran').value, perusahaan:$('#uPt').value, kontraktor:$('#uKon').value});
     e.target.reset(); await muatUser();
   } catch (err) { $('#eUser').textContent = err.message; }
   $('#bUser').disabled = false;
