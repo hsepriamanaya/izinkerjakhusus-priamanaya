@@ -95,7 +95,7 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
       <div id="dKeputusan" class="hidden"><h2 style="margin-top:16px">Keputusan: <span id="dTahap"></span></h2>
         <label for="dCatatan">Catatan (wajib bila dikembalikan untuk revisi)</label><textarea id="dCatatan" rows="3"></textarea>
         <p></p><button id="bSetuju" type="button">Setujui</button> <button class="lain" id="bRevisi" type="button">Kembalikan untuk revisi</button></div><p class="err" id="eDok" role="alert"></p>
-      <button id="bKirim" type="button">Kirim ke HSE</button> <button class="lain hidden" id="bUbahIsi" type="button">Ubah isian form</button>
+      <button id="bKirim" type="button">Kirim ke HSE</button> <button class="lain hidden" id="bUbahIsi" type="button">Ubah isian form</button> <button class="lain hidden" id="bPdf" type="button">Unduh PDF izin</button>
     </div>
     <div id="vKon" class="hidden">
       <div class="card" style="margin-bottom:16px"><h2>Tambah kontraktor</h2>
@@ -252,6 +252,16 @@ $('#bUbahIsi').onclick = async () => {
   document.querySelectorAll('#cek input[data-b]').forEach(c => c.checked = (t.cek[c.dataset.b] || []).includes(c.value));
   $('#wPt').classList.add('hidden'); $('#judulAju').textContent = 'Ubah isian izin kerja'; $('#bAju').textContent = 'Simpan perubahan';
 };
+$('#bPdf').onclick = async () => {
+  $('#eDok').textContent = 'Membuat PDF...'; $('#bPdf').disabled = true;
+  try {
+    const d = await api('permits.pdf', {permitId}), bin = atob(d.data), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([a], {type:d.mime})); l.download = d.nama; l.click();
+    $('#eDok').textContent = '';
+  } catch (err) { $('#eDok').textContent = err.message; }
+  $('#bPdf').disabled = false;
+};
 let permitId = null;
 function bukaDok(id) { permitId = id; tampil('Dok'); }
 const baca = blob => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => gagal(new Error('File tidak bisa dibaca')); r.readAsDataURL(blob); });
@@ -275,6 +285,7 @@ async function muatDok() {
       (boleh ? '<input type="file" accept="application/pdf,image/jpeg,image/png" data-up="' + s.kode + '" aria-label="Unggah ' + esc(s.label) + '">' : '') + '</td></tr>';
   }).join('') + '</tbody></table></div>';
   $('#bKirim').classList.toggle('hidden', !boleh); $('#bUbahIsi').classList.toggle('hidden', !boleh); detailKini = t;
+  $('#bPdf').classList.toggle('hidden', !['Terbit','Ditangguhkan','Penyelesaian HSE','Penyelesaian KTT','Ditutup','Dibatalkan'].includes(t.status));
   const R = t.p;
   $('#dRingkas').innerHTML = '<div class="scroll"><table><tbody>' + [['Jenis izin',R.Jenis],['Perusahaan',R.Perusahaan],['Kontraktor',R.Kontraktor],['Pemohon',R.Pemohon],['Project',R.Project],['Lokasi',R.Lokasi],
     ['Koordinat',R.Koordinat],['Jumlah pekerja',R.Pekerja],['Masa berlaku',R.Periode],['Shift',R.Shift],['Deskripsi kerja',R.Deskripsi],['Peralatan',R.Peralatan]]
