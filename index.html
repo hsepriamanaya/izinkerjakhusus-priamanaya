@@ -175,7 +175,7 @@ async function muatUser() {
   const d = await api('users.list'), k = await api('kontraktor.list');
   $('#uKon').innerHTML = '<option value="">Bukan kontraktor</option>' + k.map(x => '<option value="' + esc(x.ID) + '">' + esc(x.Nama) + '</option>').join('');
   dataUser = d;
-  $('#tUser').innerHTML = tabel([['','Username',n => '<button class="lain" data-eu="' + esc(n) + '">Ubah</button>',1],['Username','Username'],['Nama','Nama'],['Peran','Peran',p => LABEL[p] || p],['Perusahaan','Perusahaan_ID',p => p || 'Group'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d);
+  $('#tUser').innerHTML = tabel([['','Username',n => '<button class="lain" data-eu="' + esc(n) + '">Ubah</button>',1],['Username','Username'],['Nama','Nama'],['Peran','Peran',p => LABEL[p] || p],['Kontraktor','Kontraktor_ID',(id, b) => esc(b.Peran !== 'PENGAWAS' ? '-' : ((k.find(x => x.ID === id) || {}).Nama || 'Internal')),1],['Perusahaan','Perusahaan_ID',p => p || 'Group'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d);
 }
 
 function tampil(v) {
@@ -187,7 +187,7 @@ function tampil(v) {
 async function mulai(d) {
   user = d;
   $('#nama').textContent = d.nama;
-  $('#info').textContent = (LABEL[d.peran] || d.peran) + ' - ' + d.perusahaanNama;
+  $('#info').textContent = (LABEL[d.peran] || d.peran) + (d.peran === 'PENGAWAS' ? (d.kontraktorNama ? ' kontraktor ' + d.kontraktorNama : ' internal') : '') + ' - ' + d.perusahaanNama;
   const menu = [['Izin','Izin kerja']];
   ref = ref || await api('ref');
   if (d.peran === 'PENGAWAS') menu.push(['Aju','Ajukan izin']);
