@@ -90,8 +90,11 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
     </div>
     <div id="vDok" class="card hidden">
       <button class="lain" id="bKembali" type="button">Kembali ke daftar</button>
-      <h2 id="dJudul" style="margin-top:16px"></h2><p class="sub" id="dInfo"></p>
-      <div id="dSyarat"></div><p class="err" id="eDok" role="alert"></p>
+      <h2 id="dJudul" style="margin-top:16px"></h2><p class="sub" id="dInfo"></p><div id="dRingkas"></div><h2 style="margin-top:16px">Dokumen kelengkapan</h2>
+      <div id="dSyarat"></div><div id="dRiwayat"></div>
+      <div id="dKeputusan" class="hidden"><h2 style="margin-top:16px">Keputusan: <span id="dTahap"></span></h2>
+        <label for="dCatatan">Catatan (wajib bila dikembalikan untuk revisi)</label><textarea id="dCatatan" rows="3"></textarea>
+        <p></p><button id="bSetuju" type="button">Setujui</button> <button class="lain" id="bRevisi" type="button">Kembalikan untuk revisi</button></div><p class="err" id="eDok" role="alert"></p>
       <button id="bKirim" type="button">Kirim ke HSE</button>
     </div>
     <div id="vKon" class="hidden">
@@ -164,8 +167,8 @@ function tabel(kolom, baris) {
 }
 
 async function muatIzin() {
-  const d = await api('permits.list');
-  $('#tIzin').innerHTML = tabel([['No. izin','NoIzin',n => n || '(belum bernomor)'],['Jenis','JenisIzin'],['Lokasi','Lokasi'],['Mulai','TglMulai',tgl],['Selesai','TglSelesai',tgl],['Status','Status'],['','ID',id => '<button class="lain" data-doc="' + esc(id) + '">Dokumen</button>',1]], d)
+  const d = (await api('permits.list')).sort((a, b) => menunggu(b) - menunggu(a)), n = d.filter(menunggu).length;
+  $('#tIzin').innerHTML = (n ? '<p><strong>' + n + ' izin menunggu tindakan Anda.</strong></p>' : '') + tabel([['No. izin','NoIzin',n => n || '(belum bernomor)'],['Jenis','JenisIzin'],['Lokasi','Lokasi'],['Mulai','TglMulai',tgl],['Selesai','TglSelesai',tgl],['Status','Status'],['','ID',(id, b) => '<button class="' + (menunggu(b) ? '' : 'lain') + '" data-doc="' + esc(id) + '">' + (menunggu(b) ? 'Tinjau' : 'Buka') + '</button>',1]], d)
     || '<p class="kosong">Belum ada izin kerja. Form pengajuan dibuka di tahap berikutnya.</p>';
 }
 async function muatUser() {
@@ -201,6 +204,17 @@ async function mulai(d) {
   tampil('Izin');
 }
 
+const menunggu = b => (user.peran === 'HSE' && b.Status === 'Diajukan') || (user.peran === 'KTT' && b.Status === 'Terverifikasi HSE');
+$('#bSetuju').onclick = () => putuskan('Setuju');
+$('#bRevisi').onclick = () => putuskan('Revisi');
+async function putuskan(keputusan) {
+  $('#eDok').textContent = ''; $('#bSetuju').disabled = $('#bRevisi').disabled = true;
+  try {
+    const st = await api('permits.decide', {permitId, keputusan, catatan:$('#dCatatan').value});
+    $('#dCatatan').value = ''; alert('Status izin sekarang: ' + st); tampil('Izin');
+  } catch (err) { $('#eDok').textContent = err.message; }
+  $('#bSetuju').disabled = $('#bRevisi').disabled = false;
+}
 let permitId = null;
 function bukaDok(id) { permitId = id; tampil('Dok'); }
 const baca = blob => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => gagal(new Error('File tidak bisa dibaca')); r.readAsDataURL(blob); });
@@ -214,16 +228,25 @@ async function siapFile(f) {  // Foto dikecilkan di browser (maks. 1600 px) agar
   return {mime:'image/jpeg', data: await baca(blob)};
 }
 async function muatDok() {
-  const d = await api('dokumen.list', {permitId});
+  const [d, t] = await Promise.all([api('dokumen.list', {permitId}), api('permits.detail', {permitId})]);
   const boleh = user.peran === 'PENGAWAS' && ['Draft','Revisi'].includes(d.status);
   $('#dJudul').textContent = d.noIzin || 'Izin belum bernomor';
-  $('#dInfo').textContent = 'Status: ' + d.status + '. Format PDF, JPG, atau PNG, maksimal 5 MB per file.' + (boleh ? ' Nomor izin diberikan saat izin dikirim ke HSE.' : '');
+  $('#dInfo').textContent = 'Status: ' + d.status + '. Format PDF, JPG, atau PNG, maksimal 5 MB per file.' + (boleh ? (d.status === 'Revisi' ? ' Perbaiki dokumen sesuai catatan pada riwayat, lalu kirim ulang.' : ' Nomor izin diberikan saat izin dikirim ke HSE.') : '');
   $('#dSyarat').innerHTML = '<div class="scroll"><table><thead><tr><th>Dokumen</th><th>File</th><th></th></tr></thead><tbody>' + d.syarat.map(s => {
     const f = d.dok.find(x => x.Jenis === s.kode);
     return '<tr><td>' + esc(s.label) + (s.wajib ? ' (wajib)' : '') + '</td><td>' + (f ? '<button class="lain" data-buka="' + esc(f.ID) + '">' + esc(f.Nama) + '</button>' : (s.wajib ? 'Belum ada' : '-')) + '</td><td>' +
       (boleh ? '<input type="file" accept="application/pdf,image/jpeg,image/png" data-up="' + s.kode + '" aria-label="Unggah ' + esc(s.label) + '">' : '') + '</td></tr>';
   }).join('') + '</tbody></table></div>';
   $('#bKirim').classList.toggle('hidden', !boleh);
+  const R = t.p;
+  $('#dRingkas').innerHTML = '<div class="scroll"><table><tbody>' + [['Jenis izin',R.Jenis],['Perusahaan',R.Perusahaan],['Kontraktor',R.Kontraktor],['Pemohon',R.Pemohon],['Project',R.Project],['Lokasi',R.Lokasi],
+    ['Koordinat',R.Koordinat],['Jumlah pekerja',R.Pekerja],['Masa berlaku',R.Periode],['Shift',R.Shift],['Deskripsi kerja',R.Deskripsi],['Peralatan',R.Peralatan]]
+    .filter(r => r[1] !== '').map(r => '<tr><th>' + r[0] + '</th><td>' + esc(r[1]) + '</td></tr>').join('') + '</tbody></table></div>' +
+    [['C','Kegiatan terkait'],['D','Bahaya'],['E','Tindakan pencegahan'],['F','APD']].map(x => '<p><strong>' + x[1] + ':</strong> ' + esc((t.cek[x[0]] || []).join(', ') || '-') + '</p>').join('');
+  $('#dRiwayat').innerHTML = t.riwayat.length ? '<h2 style="margin-top:16px">Riwayat persetujuan</h2>' +
+    tabel([['Waktu','Waktu',w => new Date(w).toLocaleString('id-ID')],['Tahap','Tahap'],['Oleh','Oleh'],['Keputusan','Keputusan'],['Catatan','Catatan']], t.riwayat) : '';
+  $('#dKeputusan').classList.toggle('hidden', !t.tahap);
+  $('#dTahap').textContent = t.tahap;
 }
 $('#dSyarat').onchange = async e => {
   const f = e.target.files && e.target.files[0];
