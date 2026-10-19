@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Izin Kerja Khusus - Priamanaya Group</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 :root{--bg:#eef0f1;--panel:#fff;--ink:#14232b;--muted:#5b6b73;--line:#d3d9dc;--hv:#f5c400;--err:#b3261e}
 @media (prefers-color-scheme:dark){:root{--bg:#0f1a20;--panel:#172831;--ink:#e8eef0;--muted:#9fb0b8;--line:#2b414c;--err:#ff8a80}}
@@ -39,6 +40,7 @@ th{color:var(--muted);font-weight:600}
 fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8px 12px}legend{font-weight:600;padding:0 6px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px}.kpi b{display:block;font-size:1.8rem;line-height:1.1}.kpi span{color:var(--muted)}.kpi.awas{border-color:var(--err)}.kpi.awas b{color:var(--err)}
 .hb{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:.9rem}.hb span{width:42%}.hb i{display:block;height:10px;background:var(--hv);border-radius:2px;min-width:3px}
+.leaflet-container{font:inherit}.leaflet-container input{width:auto;min-height:0;margin:0}.leaflet-container label{display:inline;font-weight:400;margin:0}
 .hidden{display:none!important}
 </style>
 </head>
@@ -74,6 +76,10 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
         <div><label for="dHari">Periode (tanggal pengajuan)</label><select id="dHari"><option value="30">30 hari terakhir</option><option value="90">90 hari terakhir</option><option value="365">1 tahun terakhir</option><option value="0">Semua</option></select></div>
       </div></div>
       <div id="dKpi" class="grid" style="margin-bottom:16px"></div>
+      <div class="card" style="margin-bottom:16px"><h2>Peta pekerjaan yang sedang berlaku</h2>
+        <div id="mapDash" style="height:380px;border-radius:6px"></div>
+        <p class="sub" id="infoPetaDash"></p><p id="legendaDash" style="font-size:.85rem"></p>
+        <button class="lain" id="bKml" type="button">Ekspor KML</button></div>
       <div id="dGrafik" class="grid" style="margin-bottom:16px"></div>
       <div id="dDaftar"></div>
     </div>
@@ -87,11 +93,16 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
           <div><label for="aLok">Lokasi kerja</label><input id="aLok" required></div>
           <div><label for="aLat">Latitude (opsional)</label><input id="aLat" inputmode="decimal"></div>
           <div><label for="aLng">Longitude (opsional)</label><input id="aLng" inputmode="decimal"></div>
+          <div><label for="aE">UTM 48S - Easting (X)</label><input id="aE" inputmode="numeric"></div>
+          <div><label for="aN">UTM 48S - Northing (Y)</label><input id="aN" inputmode="numeric"></div>
           <div><label for="aJml">Jumlah pekerja</label><input id="aJml" type="number" min="1" required></div>
           <div><label for="aShift">Shift pelaksanaan</label><input id="aShift" placeholder="mis. Shift 1" required></div>
           <div><label for="aMul">Tanggal mulai</label><input id="aMul" type="date" required></div>
           <div><label for="aSel">Tanggal selesai (maks. 7 hari)</label><input id="aSel" type="date" required></div>
         </div>
+        <label>Titik lokasi pekerjaan (klik peta, isi koordinat, atau gunakan GPS)</label>
+        <div id="mapAju" style="height:320px;border-radius:6px"></div>
+        <p class="sub"><button class="lain" id="bGps" type="button">Gunakan lokasi saya</button> <button class="lain" id="bHapusTitik" type="button">Hapus titik</button> <span id="infoGps"></span></p>
         <label for="aDesk">Deskripsi kerja</label><textarea id="aDesk" rows="3" placeholder="mis. pengelasan dengan menggunakan gas asetilin" required></textarea>
         <label for="aAlat">Jenis peralatan yang digunakan</label><input id="aAlat">
         <div id="cek"></div>
@@ -101,7 +112,7 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
     </div>
     <div id="vDok" class="card hidden">
       <button class="lain" id="bKembali" type="button">Kembali ke daftar</button>
-      <h2 id="dJudul" style="margin-top:16px"></h2><p class="sub" id="dInfo"></p><div id="dRingkas"></div><h2 style="margin-top:16px">Dokumen kelengkapan</h2>
+      <h2 id="dJudul" style="margin-top:16px"></h2><p class="sub" id="dInfo"></p><div id="dRingkas"></div><div id="wMapDok" class="hidden"><div id="mapDok" style="height:260px;margin:12px 0 4px;border-radius:6px"></div><p class="sub" id="utmDok"></p></div><h2 style="margin-top:16px">Dokumen kelengkapan</h2>
       <div id="dSyarat"></div><div id="dRiwayat"></div><div id="dOps"></div>
       <div id="dKeputusan" class="hidden"><h2 style="margin-top:16px">Keputusan: <span id="dTahap"></span></h2>
         <label for="dCatatan">Catatan (wajib bila dikembalikan untuk revisi)</label><textarea id="dCatatan" rows="3"></textarea>
@@ -142,6 +153,7 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
   </main>
 </section>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 // URL Web App Apps Script (berakhiran /exec)
 const API_URL = 'https://script.google.com/macros/s/AKfycbxPE4IETa-ikaaOW6lH9lqYF9lTfeOPwyktx1j-zdLDHeA0YizWZzTnztKo-Bqzd42Bhg/exec';
@@ -253,7 +265,7 @@ $('#dOps').onclick = async e => {
 };
 let editAju = null, detailKini = null;
 function resetAju() {
-  editAju = null; $('#fAju').reset(); $('#judulAju').textContent = 'Ajukan izin kerja'; $('#bAju').textContent = 'Ajukan izin';
+  editAju = null; $('#fAju').reset(); hapusTitikAju(); $('#judulAju').textContent = 'Ajukan izin kerja'; $('#bAju').textContent = 'Ajukan izin';
 }
 $('#bUbahIsi').onclick = async () => {
   const t = detailKini, i = t.isi;
@@ -262,6 +274,7 @@ $('#bUbahIsi').onclick = async () => {
     .forEach(f => $('#' + f[0]).value = i[f[1]] == null ? '' : i[f[1]]);
   document.querySelectorAll('#cek input[data-b]').forEach(c => c.checked = (t.cek[c.dataset.b] || []).includes(c.value));
   $('#wPt').classList.add('hidden'); $('#judulAju').textContent = 'Ubah isian izin kerja'; $('#bAju').textContent = 'Simpan perubahan';
+  if (i.lat !== '' && i.lng !== '') setAju(Number(i.lat), Number(i.lng), true); else hapusTitikAju();
 };
 $('#bPdf').onclick = async () => {
   $('#eDok').textContent = 'Membuat PDF...'; $('#bPdf').disabled = true;
@@ -286,6 +299,7 @@ async function muatDash() {
   const kpi = [['Total izin', d.total, ''], ['Sedang berlaku', d.aktif, ''], ['Menunggu tindakan', d.menunggu, ''], ['Melewati masa berlaku, belum ditutup', d.lewat.length, d.lewat.length ? 'awas' : ''],
     ['Berakhir dalam 2 hari', d.segera.length, d.segera.length ? 'awas' : ''], ['Ditutup', d.ditutup, '']];
   $('#dKpi').innerHTML = kpi.map(x => '<div class="kpi ' + x[2] + '"><b>' + x[1] + '</b><span>' + x[0] + '</span></div>').join('');
+  petaDashboard(d.titik || []);
   $('#dGrafik').innerHTML = hb('Menurut status', d.status) + hb('Menurut jenis izin', d.jenis) + (grup ? hb('Menurut perusahaan', d.perusahaan) : '') + hb('Izin diajukan per bulan', d.tren, true);
   const kol = [['No. izin','NoIzin'],['Perusahaan','Perusahaan'],['Jenis','Jenis'],['Lokasi','Lokasi'],['Berakhir','TglSelesai'],['','ID',id => '<button class="lain" data-doc="' + esc(id) + '">Buka</button>',1]];
   const daftar = (j, rows) => rows.length ? '<div class="card" style="margin-bottom:16px"><h2>' + j + '</h2>' + tabel(kol, rows) + '</div>' : '';
@@ -294,6 +308,94 @@ async function muatDash() {
 }
 $('#dPt').onchange = $('#dHari').onchange = () => muatDash().catch(e => alert(e.message));
 $('#dDaftar').onclick = e => e.target.dataset.doc && bukaDok(e.target.dataset.doc);
+// ---------- Peta (Leaflet) ----------
+const ORTHO_URL = '';  // Isi dengan alamat tile ortho Engineering, mis. 'https://.../{z}/{x}/{y}.png'. Kosong = ortho belum dipasang
+const ORTHO_BOUNDS = [[-3.78435, 103.57130], [-3.71714, 103.66435]], PUSAT = [-3.75075, 103.61783];
+const WARNA = {PANAS:'#e4572e', RUANG_TERBATAS:'#7b2cbf', KETINGGIAN:'#1d7fd6', PENGGALIAN:'#8c5a2b', LISTRIK:'#f2c200', ISOLASI_ENERGI:'#2a9d8f', PENGANGKATAN:'#e07a00', LAINNYA:'#6c757d'};
+const UTM = (() => {  // WGS84, UTM zona 48 Selatan
+  const a = 6378137, e2 = (1 / 298.257223563) * (2 - 1 / 298.257223563), ep2 = e2 / (1 - e2), k0 = .9996, l0 = 105 * Math.PI / 180, r = x => x * Math.PI / 180;
+  const fwd = (lat, lon) => {
+    const p = r(lat), l = r(lon), N = a / Math.sqrt(1 - e2 * Math.sin(p) ** 2), T = Math.tan(p) ** 2, C = ep2 * Math.cos(p) ** 2, A = Math.cos(p) * (l - l0);
+    const M = a * ((1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256) * p - (3 * e2 / 8 + 3 * e2 ** 2 / 32 + 45 * e2 ** 3 / 1024) * Math.sin(2 * p) + (15 * e2 ** 2 / 256 + 45 * e2 ** 3 / 1024) * Math.sin(4 * p) - (35 * e2 ** 3 / 3072) * Math.sin(6 * p));
+    return [500000 + k0 * N * (A + (1 - T + C) * A ** 3 / 6 + (5 - 18 * T + T ** 2 + 72 * C - 58 * ep2) * A ** 5 / 120),
+      1e7 + k0 * (M + N * Math.tan(p) * (A ** 2 / 2 + (5 - T + 9 * C + 4 * C ** 2) * A ** 4 / 24 + (61 - 58 * T + T ** 2 + 600 * C - 330 * ep2) * A ** 6 / 720))];
+  };
+  const inv = (E, Nn) => {
+    const x = E - 5e5, M = (Nn - 1e7) / k0, mu = M / (a * (1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256)), e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+    const f1 = mu + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu) + (21 * e1 ** 2 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu) + (151 * e1 ** 3 / 96) * Math.sin(6 * mu) + (1097 * e1 ** 4 / 512) * Math.sin(8 * mu);
+    const N1 = a / Math.sqrt(1 - e2 * Math.sin(f1) ** 2), T1 = Math.tan(f1) ** 2, C1 = ep2 * Math.cos(f1) ** 2, R1 = a * (1 - e2) / (1 - e2 * Math.sin(f1) ** 2) ** 1.5, D = x / (N1 * k0);
+    const lat = f1 - (N1 * Math.tan(f1) / R1) * (D ** 2 / 2 - (5 + 3 * T1 + 10 * C1 - 4 * C1 ** 2 - 9 * ep2) * D ** 4 / 24 + (61 + 90 * T1 + 298 * C1 + 45 * T1 ** 2 - 252 * ep2 - 3 * C1 ** 2) * D ** 6 / 720);
+    const lon = l0 + (D - (1 + 2 * T1 + C1) * D ** 3 / 6 + (5 - 2 * C1 + 28 * T1 - 3 * C1 ** 2 + 8 * ep2 + 24 * T1 ** 2) * D ** 5 / 120) / Math.cos(f1);
+    return [lat * 180 / Math.PI, lon * 180 / Math.PI];
+  };
+  return {fwd, inv};
+})();
+function buatPeta(id) {
+  const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'});
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Tiles &copy; Esri'});
+  const lapis = [sat], overlay = {};
+  if (ORTHO_URL) { const o = L.tileLayer(ORTHO_URL, {minZoom:12, maxNativeZoom:18, maxZoom:20, bounds:ORTHO_BOUNDS, attribution:'Ortho Engineering'}); lapis.push(o); overlay['Ortho Engineering'] = o; }
+  const m = L.map(id, {center:PUSAT, zoom:13, maxZoom:20, layers:lapis});
+  L.control.layers({'Satelit':sat, 'Peta jalan':osm}, overlay).addTo(m); L.control.scale({imperial:false}).addTo(m);
+  return m;
+}
+const titikGaya = w => ({radius:9, color:'#14232b', weight:2, fillColor:w || '#f5c400', fillOpacity:.95});
+const num = v => parseFloat(String(v).replace(',', '.'));
+let petaAju = null, titikAju = null, petaDok = null, titikDok = null, petaDash = null, lapisDash = null, dataTitik = [];
+
+function setAju(lat, lng, geser) {
+  if (!isFinite(lat) || !isFinite(lng)) return;
+  $('#aLat').value = lat.toFixed(6); $('#aLng').value = lng.toFixed(6);
+  const u = UTM.fwd(lat, lng); $('#aE').value = Math.round(u[0]); $('#aN').value = Math.round(u[1]);
+  if (titikAju) titikAju.setLatLng([lat, lng]); else titikAju = L.circleMarker([lat, lng], titikGaya()).addTo(petaAju);
+  if (geser) { petaAju.invalidateSize(); petaAju.setView([lat, lng], Math.max(petaAju.getZoom(), 16)); }
+}
+function hapusTitikAju() {
+  if (titikAju) { titikAju.remove(); titikAju = null; }
+  ['aLat','aLng','aE','aN'].forEach(i => $('#' + i).value = '');
+}
+function inisiAju() {
+  if (!petaAju) { petaAju = buatPeta('mapAju'); petaAju.on('click', e => setAju(e.latlng.lat, e.latlng.lng)); }
+  setTimeout(() => petaAju.invalidateSize(), 0);
+}
+$('#aLat').onchange = $('#aLng').onchange = () => setAju(num($('#aLat').value), num($('#aLng').value), true);
+$('#aE').onchange = $('#aN').onchange = () => { const p = UTM.inv(num($('#aE').value), num($('#aN').value)); setAju(p[0], p[1], true); };
+$('#bHapusTitik').onclick = hapusTitikAju;
+$('#bGps').onclick = () => {
+  if (!navigator.geolocation) { $('#infoGps').textContent = 'Perangkat tidak mendukung GPS'; return; }
+  $('#infoGps').textContent = 'Mencari lokasi...';
+  navigator.geolocation.getCurrentPosition(p => { setAju(p.coords.latitude, p.coords.longitude, true); $('#infoGps').textContent = 'Akurasi sekitar ' + Math.round(p.coords.accuracy) + ' m'; },
+    e => { $('#infoGps').textContent = 'Lokasi tidak bisa dibaca: ' + e.message; }, {enableHighAccuracy:true, timeout:15000});
+};
+function tampilPetaDok(i) {
+  const ada = i.lat !== '' && i.lng !== '' && isFinite(Number(i.lat)) && isFinite(Number(i.lng));
+  $('#wMapDok').classList.toggle('hidden', !ada); if (!ada) return;
+  const ll = [Number(i.lat), Number(i.lng)], u = UTM.fwd(ll[0], ll[1]);
+  if (!petaDok) petaDok = buatPeta('mapDok');
+  petaDok.invalidateSize();
+  if (titikDok) titikDok.setLatLng(ll); else titikDok = L.circleMarker(ll, titikGaya()).addTo(petaDok);
+  petaDok.setView(ll, 16);
+  $('#utmDok').textContent = 'Koordinat: ' + ll[0].toFixed(6) + ', ' + ll[1].toFixed(6) + '  |  UTM 48S: E ' + Math.round(u[0]) + ', N ' + Math.round(u[1]);
+}
+function petaDashboard(titik) {
+  if (!petaDash) {
+    petaDash = buatPeta('mapDash'); lapisDash = L.layerGroup().addTo(petaDash);
+    petaDash.on('popupopen', e => { const b = e.popup.getElement().querySelector('button[data-doc]'); if (b) b.onclick = () => bukaDok(b.dataset.doc); });
+  }
+  petaDash.invalidateSize(); lapisDash.clearLayers(); dataTitik = titik;
+  titik.forEach(t => L.circleMarker([t.Lat, t.Lng], titikGaya(WARNA[t.Kode])).bindPopup('<b>' + esc(t.NoIzin) + '</b><br>' + esc(t.Jenis) + '<br>' + esc(t.Lokasi) + '<br>' + esc(t.Perusahaan) +
+    '<br>Berakhir ' + esc(t.TglSelesai) + '<br><button type="button" data-doc="' + esc(t.ID) + '">Buka</button>').addTo(lapisDash));
+  if (titik.length) petaDash.fitBounds(titik.map(t => [t.Lat, t.Lng]), {maxZoom:16, padding:[30,30]});
+  $('#legendaDash').innerHTML = ref.jenis.map(j => '<span style="margin-right:12px"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (WARNA[j[0]] || '#6c757d') + ';margin-right:4px"></i>' + esc(j[1]) + '</span>').join('');
+  $('#infoPetaDash').textContent = titik.length ? titik.length + ' izin berlaku dengan titik lokasi.' : 'Belum ada izin berlaku yang memiliki titik lokasi.';
+}
+$('#bKml').onclick = () => {
+  if (!dataTitik.length) { alert('Belum ada titik untuk diekspor'); return; }
+  const x = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const kml = '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Izin kerja berlaku</name>' +
+    dataTitik.map(t => '<Placemark><name>' + x(t.NoIzin) + '</name><description>' + x(t.Jenis + ' - ' + t.Lokasi + ' - ' + t.Perusahaan + ' - berakhir ' + t.TglSelesai) + '</description><Point><coordinates>' + t.Lng + ',' + t.Lat + ',0</coordinates></Point></Placemark>').join('') + '</Document></kml>';
+  const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([kml], {type:'application/vnd.google-earth.kml+xml'})); l.download = 'izin_kerja_berlaku.kml'; l.click();
+};
 let permitId = null;
 function bukaDok(id) { permitId = id; tampil('Dok'); }
 const baca = blob => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => gagal(new Error('File tidak bisa dibaca')); r.readAsDataURL(blob); });
@@ -325,7 +427,7 @@ async function muatDok() {
     [['C','Kegiatan terkait'],['D','Bahaya'],['E','Tindakan pencegahan'],['F','APD']].map(x => '<p><strong>' + x[1] + ':</strong> ' + esc((t.cek[x[0]] || []).join(', ') || '-') + '</p>').join('');
   $('#dRiwayat').innerHTML = t.riwayat.length ? '<h2 style="margin-top:16px">Riwayat persetujuan</h2>' +
     tabel([['Waktu','Waktu',w => new Date(w).toLocaleString('id-ID')],['Tahap','Tahap'],['Oleh','Oleh'],['Keputusan','Keputusan'],['Catatan','Catatan']], t.riwayat) : '';
-  renderOps(t);
+  renderOps(t); tampilPetaDok(t.isi);
   $('#dKeputusan').classList.toggle('hidden', !t.tahap);
   $('#dTahap').textContent = t.tahap;
 }
@@ -382,6 +484,7 @@ $('#tUser').onclick = e => {
 };
 
 async function muatAju() {
+  inisiAju();
   if (!$('#cek').innerHTML) {
     const N = {C:'Kegiatan terkait',D:'Bahaya yang mungkin terjadi',E:'Tindakan pencegahan',F:'Alat pelindung diri'};
     $('#cek').innerHTML = Object.keys(N).map(k => '<fieldset><legend>' + N[k] + '</legend><div class="grid">' +
