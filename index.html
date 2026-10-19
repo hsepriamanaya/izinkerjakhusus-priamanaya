@@ -101,9 +101,10 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
           <div><label for="kIujp">Nomor IUJP</label><input id="kIujp" required></div>
           <div><label for="kBer">IUJP berlaku sampai</label><input id="kBer" type="date" required></div>
           <div><label>Ditunjuk untuk</label><div id="kPt"></div></div>
+          <div><label class="cb"><input type="checkbox" id="kAktif" checked> Kontraktor aktif</label></div>
         </form>
         <p class="err" id="eKon" role="alert"></p>
-        <button id="bKon" type="submit" form="fKon">Simpan kontraktor</button>
+        <button id="bKon" type="submit" form="fKon">Simpan kontraktor</button> <button class="lain hidden" id="bKonBatal" type="button">Batal</button>
       </div>
       <div class="card"><h2>Kontraktor dan IUJP</h2><div id="tKon"></div></div>
     </div>
@@ -117,9 +118,10 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
           <div><label for="uPeran">Peran</label><select id="uPeran"></select></div>
           <div><label for="uPt">Perusahaan</label><select id="uPt"></select></div>
           <div><label for="uKon">Kontraktor (untuk pengawas kontraktor)</label><select id="uKon"></select></div>
+          <div><label class="cb"><input type="checkbox" id="uAktif" checked> Akun aktif</label></div>
         </form>
         <p class="err" id="eUser" role="alert"></p>
-        <button id="bUser" type="submit" form="fUser">Simpan pengguna</button>
+        <button id="bUser" type="submit" form="fUser">Simpan pengguna</button> <button class="lain hidden" id="bUserBatal" type="button">Batal</button>
       </div>
       <div class="card"><h2>Pengguna</h2><div id="tUser"></div></div>
     </div>
@@ -128,7 +130,7 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
 
 <script>
 // Isi dengan URL Web App Apps Script (berakhiran /exec)
-const API_URL = 'https://script.google.com/macros/s/AKfycbxPE4IETa-ikaaOW6lH9lqYF9lTfeOPwyktx1j-zdLDHeA0YizWZzTnztKo-Bqzd42Bhg/exec';
+const API_URL = 'GANTI_DENGAN_URL_WEB_APP';
 const LABEL = {ADMIN_GROUP:'Admin Group',ADMIN:'Admin Perusahaan',HSE:'HSE',KTT:'Kepala Teknik Tambang',PENGAWAS:'Pengawas',GROUP_VIEWER:'Pemantau Group'};
 const $ = s => document.querySelector(s);
 let token = null, user = null, ref = null;
@@ -169,7 +171,8 @@ async function muatIzin() {
 async function muatUser() {
   const d = await api('users.list'), k = await api('kontraktor.list');
   $('#uKon').innerHTML = '<option value="">Bukan kontraktor</option>' + k.map(x => '<option value="' + esc(x.ID) + '">' + esc(x.Nama) + '</option>').join('');
-  $('#tUser').innerHTML = tabel([['Username','Username'],['Nama','Nama'],['Peran','Peran',p => LABEL[p] || p],['Perusahaan','Perusahaan_ID',p => p || 'Group'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d);
+  dataUser = d;
+  $('#tUser').innerHTML = tabel([['','Username',n => '<button class="lain" data-eu="' + esc(n) + '">Ubah</button>',1],['Username','Username'],['Nama','Nama'],['Peran','Peran',p => LABEL[p] || p],['Perusahaan','Perusahaan_ID',p => p || 'Group'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d);
 }
 
 function tampil(v) {
@@ -249,6 +252,31 @@ $('#bKirim').onclick = async () => {
 $('#bKembali').onclick = () => tampil('Izin');
 $('#tIzin').onclick = e => e.target.dataset.doc && bukaDok(e.target.dataset.doc);
 let kon = null;
+let dataKon = [], dataUser = [], editKon = null, editUser = null;
+function resetKon() {
+  editKon = null; $('#fKon').reset(); $('#kAktif').checked = true;
+  $('#bKon').textContent = 'Simpan kontraktor'; $('#bKonBatal').classList.add('hidden');
+}
+function resetUser() {
+  editUser = null; $('#fUser').reset(); $('#uUn').readOnly = false; $('#uPw').required = true; $('#uPw').placeholder = '';
+  $('#uAktif').checked = true; $('#bUser').textContent = 'Simpan pengguna'; $('#bUserBatal').classList.add('hidden');
+}
+$('#bKonBatal').onclick = resetKon; $('#bUserBatal').onclick = resetUser;
+$('#tKon').onclick = e => {
+  const k = dataKon.find(x => x.ID === e.target.dataset.ek); if (!k) return;
+  editKon = k.ID; $('#kNama').value = k.Nama; $('#kIujp').value = k.IUJP_No; $('#kBer').value = k.IUJP_Berlaku; $('#kAktif').checked = k.Aktif;
+  const ids = String(k.Perusahaan_IDs).split(',').map(s => s.trim());
+  $('#kPt').querySelectorAll('input').forEach(i => i.checked = ids.includes(i.value));
+  $('#bKon').textContent = 'Simpan perubahan'; $('#bKonBatal').classList.remove('hidden'); $('#fKon').scrollIntoView({block:'center'});
+};
+$('#tUser').onclick = e => {
+  const x = dataUser.find(r => r.Username === e.target.dataset.eu); if (!x) return;
+  editUser = x.Username; $('#uUn').value = x.Username; $('#uUn').readOnly = true; $('#uNama').value = x.Nama;
+  $('#uPw').value = ''; $('#uPw').required = false; $('#uPw').placeholder = 'Kosongkan jika tidak diganti';
+  $('#uPeran').value = x.Peran; $('#uPt').value = x.Perusahaan_ID; $('#uKon').value = x.Kontraktor_ID || ''; $('#uAktif').checked = x.Aktif;
+  $('#bUser').textContent = 'Simpan perubahan'; $('#bUserBatal').classList.remove('hidden'); $('#fUser').scrollIntoView({block:'center'});
+};
+
 async function muatAju() {
   if (!$('#cek').innerHTML) {
     const N = {C:'Kegiatan terkait',D:'Bahaya yang mungkin terjadi',E:'Tindakan pencegahan',F:'Alat pelindung diri'};
@@ -264,7 +292,8 @@ async function muatAju() {
 }
 async function muatKon() {
   const d = await api('kontraktor.list');
-  $('#tKon').innerHTML = tabel([['Kontraktor','Nama'],['No. IUJP','IUJP_No'],['IUJP berlaku s.d.','IUJP_Berlaku'],['Perusahaan','Perusahaan_IDs'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d) || '<p class="kosong">Belum ada kontraktor.</p>';
+  dataKon = d;
+  $('#tKon').innerHTML = tabel([['','ID',id => '<button class="lain" data-ek="' + esc(id) + '">Ubah</button>',1],['Kontraktor','Nama'],['No. IUJP','IUJP_No'],['IUJP berlaku s.d.','IUJP_Berlaku'],['Perusahaan','Perusahaan_IDs'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d) || '<p class="kosong">Belum ada kontraktor.</p>';
   const pts = ref.perusahaan.filter(p => user.peran === 'ADMIN_GROUP' || p.ID === user.perusahaan);
   $('#kPt').innerHTML = pts.map(p => '<label class="cb"><input type="checkbox" value="' + esc(p.ID) + '"' + (pts.length === 1 ? ' checked' : '') + '> ' + esc(p.Nama) + '</label>').join('');
 }
@@ -282,7 +311,10 @@ $('#fAju').onsubmit = async e => {
 $('#fKon').onsubmit = async e => {
   e.preventDefault(); $('#eKon').textContent = ''; $('#bKon').disabled = true;
   const pts = [...$('#kPt').querySelectorAll('input:checked')].map(i => i.value).join(',');
-  try { await api('kontraktor.save', {nama:$('#kNama').value, iujp:$('#kIujp').value, berlaku:$('#kBer').value, perusahaan:pts}); e.target.reset(); await muatKon(); }
+  try {
+    const x = {nama:$('#kNama').value, iujp:$('#kIujp').value, berlaku:$('#kBer').value, perusahaan:pts, aktif:$('#kAktif').checked};
+    await api(editKon ? 'kontraktor.update' : 'kontraktor.save', editKon ? Object.assign({id:editKon}, x) : x); resetKon(); await muatKon();
+  }
   catch (err) { $('#eKon').textContent = err.message; }
   $('#bKon').disabled = false;
 };
@@ -297,8 +329,8 @@ $('#fLogin').onsubmit = async e => {
 $('#fUser').onsubmit = async e => {
   e.preventDefault(); $('#eUser').textContent = ''; $('#bUser').disabled = true;
   try {
-    await api('users.create', {username:$('#uUn').value, nama:$('#uNama').value, password:$('#uPw').value, peran:$('#uPeran').value, perusahaan:$('#uPt').value, kontraktor:$('#uKon').value});
-    e.target.reset(); await muatUser();
+    await api(editUser ? 'users.update' : 'users.create', {aktif:$('#uAktif').checked, username:$('#uUn').value, nama:$('#uNama').value, password:$('#uPw').value, peran:$('#uPeran').value, perusahaan:$('#uPt').value, kontraktor:$('#uKon').value});
+    resetUser(); await muatUser();
   } catch (err) { $('#eUser').textContent = err.message; }
   $('#bUser').disabled = false;
 };
