@@ -91,7 +91,7 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
     <div id="vDok" class="card hidden">
       <button class="lain" id="bKembali" type="button">Kembali ke daftar</button>
       <h2 id="dJudul" style="margin-top:16px"></h2><p class="sub" id="dInfo"></p><div id="dRingkas"></div><h2 style="margin-top:16px">Dokumen kelengkapan</h2>
-      <div id="dSyarat"></div><div id="dRiwayat"></div>
+      <div id="dSyarat"></div><div id="dRiwayat"></div><div id="dOps"></div>
       <div id="dKeputusan" class="hidden"><h2 style="margin-top:16px">Keputusan: <span id="dTahap"></span></h2>
         <label for="dCatatan">Catatan (wajib bila dikembalikan untuk revisi)</label><textarea id="dCatatan" rows="3"></textarea>
         <p></p><button id="bSetuju" type="button">Setujui</button> <button class="lain" id="bRevisi" type="button">Kembalikan untuk revisi</button></div><p class="err" id="eDok" role="alert"></p>
@@ -132,7 +132,7 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
 </section>
 
 <script>
-// Isi dengan URL Web App Apps Script (berakhiran /exec)
+// URL Web App Apps Script (berakhiran /exec)
 const API_URL = 'https://script.google.com/macros/s/AKfycbxPE4IETa-ikaaOW6lH9lqYF9lTfeOPwyktx1j-zdLDHeA0YizWZzTnztKo-Bqzd42Bhg/exec';
 const LABEL = {ADMIN_GROUP:'Admin Group',ADMIN:'Admin Perusahaan',HSE:'HSE',KTT:'Kepala Teknik Tambang',PENGAWAS:'Pengawas',GROUP_VIEWER:'Pemantau Group'};
 const $ = s => document.querySelector(s);
@@ -168,7 +168,7 @@ function tabel(kolom, baris) {
 
 async function muatIzin() {
   const d = (await api('permits.list')).sort((a, b) => menunggu(b) - menunggu(a)), n = d.filter(menunggu).length;
-  $('#tIzin').innerHTML = (n ? '<p><strong>' + n + ' izin menunggu tindakan Anda.</strong></p>' : '') + tabel([['No. izin','NoIzin',n => n || '(belum bernomor)'],['Jenis','JenisIzin'],['Lokasi','Lokasi'],['Mulai','TglMulai',tgl],['Selesai','TglSelesai',tgl],['Status','Status'],['','ID',(id, b) => '<button class="' + (menunggu(b) ? '' : 'lain') + '" data-doc="' + esc(id) + '">' + (menunggu(b) ? 'Tinjau' : 'Buka') + '</button>',1]], d)
+  $('#tIzin').innerHTML = (n ? '<p><strong>' + n + ' izin menunggu tindakan Anda.</strong></p>' : '') + tabel([['No. izin','NoIzin',n => n || '(belum bernomor)'],['Jenis','JenisIzin'],['Lokasi','Lokasi'],['Mulai','TglMulai',tgl],['Selesai','TglSelesai',tgl],['Status','StatusTampil'],['','ID',(id, b) => '<button class="' + (menunggu(b) ? '' : 'lain') + '" data-doc="' + esc(id) + '">' + (menunggu(b) ? 'Tinjau' : 'Buka') + '</button>',1]], d)
     || '<p class="kosong">Belum ada izin kerja. Form pengajuan dibuka di tahap berikutnya.</p>';
 }
 async function muatUser() {
@@ -204,7 +204,7 @@ async function mulai(d) {
   tampil('Izin');
 }
 
-const menunggu = b => (user.peran === 'HSE' && b.Status === 'Diajukan') || (user.peran === 'KTT' && b.Status === 'Terverifikasi HSE');
+const menunggu = b => (user.peran === 'HSE' && ['Diajukan','Penyelesaian HSE'].includes(b.Status)) || (user.peran === 'KTT' && ['Terverifikasi HSE','Penyelesaian KTT'].includes(b.Status));
 $('#bSetuju').onclick = () => putuskan('Setuju');
 $('#bRevisi').onclick = () => putuskan('Revisi');
 async function putuskan(keputusan) {
@@ -215,6 +215,30 @@ async function putuskan(keputusan) {
   } catch (err) { $('#eDok').textContent = err.message; }
   $('#bSetuju').disabled = $('#bRevisi').disabled = false;
 }
+function renderOps(t) {
+  const st = t.status, per = user.peran, h = [], kerja = ['Terbit','Ditangguhkan'].includes(st);
+  h.push('<h2 style="margin-top:16px">Pemantauan harian</h2>' + (t.inspeksi.length ?
+    tabel([['Waktu','Waktu',w => new Date(w).toLocaleString('id-ID')],['Oleh','Oleh'],['Catatan','Catatan'],['LEL (%)','LEL']], t.inspeksi) : '<p class="kosong">Belum ada catatan inspeksi.</p>'));
+  if (kerja && ['PENGAWAS','HSE'].includes(per)) h.push('<label for="iCat">Catatan inspeksi</label><textarea id="iCat" rows="2"></textarea><label for="iLel">Uji gas LEL (%), bila ada</label><input id="iLel" inputmode="decimal"><p></p><button type="button" data-act="inspeksi">Simpan catatan</button>');
+  if (st === 'Terbit' && per === 'PENGAWAS') h.push('<h2 style="margin-top:16px">Penyelesaian pekerjaan</h2>' + ref.selesai.map((s, i) => '<label class="cb"><input type="checkbox" data-s="' + esc(s) + '"> ' + esc(s) + '</label>').join('') + '<p></p><button type="button" data-act="selesai">Ajukan penyelesaian</button>');
+  if (kerja && ['HSE','KTT'].includes(per)) h.push('<h2 style="margin-top:16px">Penangguhan atau pembatalan (poin I)</h2><label for="cJenis">Tindakan</label><select id="cJenis">' +
+    (st === 'Terbit' ? '<option value="Tangguhkan">Tangguhkan sementara</option>' : '<option value="Lanjutkan">Lanjutkan pekerjaan</option>') + '<option value="Batalkan">Batalkan izin</option></select>' +
+    '<label for="cAlasan">Alasan</label><select id="cAlasan">' + ref.alasan.map(a => '<option>' + esc(a) + '</option>').join('') + '</select><label for="cCat">Catatan</label><textarea id="cCat" rows="2"></textarea><p></p><button type="button" data-act="batal">Simpan tindakan</button>' +
+    (per === 'HSE' ? '<p class="sub">Tindakan HSE tercatat sebagai mewakili KTT.</p>' : ''));
+  $('#dOps').innerHTML = h.join('');
+}
+$('#dOps').onclick = async e => {
+  const act = e.target.dataset.act; if (!act) return;
+  $('#eDok').textContent = ''; e.target.disabled = true;
+  try {
+    const v = id => $('#' + id).value;
+    const msg = act === 'inspeksi' ? await api('inspeksi.add', {permitId, catatan:v('iCat'), lel:v('iLel')})
+      : act === 'selesai' ? await api('permits.selesai', {permitId, item:[...$('#dOps').querySelectorAll('input[data-s]:checked')].map(i => i.dataset.s)})
+      : await api('permits.cancel', {permitId, jenis:v('cJenis'), alasan:v('cAlasan'), catatan:v('cCat')});
+    alert(msg); await muatDok();
+  } catch (err) { $('#eDok').textContent = err.message; }
+  e.target.disabled = false;
+};
 let permitId = null;
 function bukaDok(id) { permitId = id; tampil('Dok'); }
 const baca = blob => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => gagal(new Error('File tidak bisa dibaca')); r.readAsDataURL(blob); });
@@ -231,7 +255,7 @@ async function muatDok() {
   const [d, t] = await Promise.all([api('dokumen.list', {permitId}), api('permits.detail', {permitId})]);
   const boleh = user.peran === 'PENGAWAS' && ['Draft','Revisi'].includes(d.status);
   $('#dJudul').textContent = d.noIzin || 'Izin belum bernomor';
-  $('#dInfo').textContent = 'Status: ' + d.status + '. Format PDF, JPG, atau PNG, maksimal 5 MB per file.' + (boleh ? (d.status === 'Revisi' ? ' Perbaiki dokumen sesuai catatan pada riwayat, lalu kirim ulang.' : ' Nomor izin diberikan saat izin dikirim ke HSE.') : '');
+  $('#dInfo').textContent = 'Status: ' + t.tampil + '. Format PDF, JPG, atau PNG, maksimal 5 MB per file.' + (boleh ? (d.status === 'Revisi' ? ' Perbaiki dokumen sesuai catatan pada riwayat, lalu kirim ulang.' : ' Nomor izin diberikan saat izin dikirim ke HSE.') : '');
   $('#dSyarat').innerHTML = '<div class="scroll"><table><thead><tr><th>Dokumen</th><th>File</th><th></th></tr></thead><tbody>' + d.syarat.map(s => {
     const f = d.dok.find(x => x.Jenis === s.kode);
     return '<tr><td>' + esc(s.label) + (s.wajib ? ' (wajib)' : '') + '</td><td>' + (f ? '<button class="lain" data-buka="' + esc(f.ID) + '">' + esc(f.Nama) + '</button>' : (s.wajib ? 'Belum ada' : '-')) + '</td><td>' +
@@ -245,6 +269,7 @@ async function muatDok() {
     [['C','Kegiatan terkait'],['D','Bahaya'],['E','Tindakan pencegahan'],['F','APD']].map(x => '<p><strong>' + x[1] + ':</strong> ' + esc((t.cek[x[0]] || []).join(', ') || '-') + '</p>').join('');
   $('#dRiwayat').innerHTML = t.riwayat.length ? '<h2 style="margin-top:16px">Riwayat persetujuan</h2>' +
     tabel([['Waktu','Waktu',w => new Date(w).toLocaleString('id-ID')],['Tahap','Tahap'],['Oleh','Oleh'],['Keputusan','Keputusan'],['Catatan','Catatan']], t.riwayat) : '';
+  renderOps(t);
   $('#dKeputusan').classList.toggle('hidden', !t.tahap);
   $('#dTahap').textContent = t.tahap;
 }
