@@ -37,6 +37,8 @@ th{color:var(--muted);font-weight:600}
 .grid{display:grid;gap:0 16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .cb{display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0}.cb input{width:auto;min-height:0}
 fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8px 12px}legend{font-weight:600;padding:0 6px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px}.kpi b{display:block;font-size:1.8rem;line-height:1.1}.kpi span{color:var(--muted)}.kpi.awas{border-color:var(--err)}.kpi.awas b{color:var(--err)}
+.hb{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:.9rem}.hb span{width:42%}.hb i{display:block;height:10px;background:var(--hv);border-radius:2px;min-width:3px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -66,6 +68,15 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
     <nav id="nav"></nav>
   </header>
   <main>
+    <div id="vDash" class="hidden">
+      <div class="card" style="margin-bottom:16px"><div class="grid">
+        <div id="fPtW"><label for="dPt">Perusahaan</label><select id="dPt"></select></div>
+        <div><label for="dHari">Periode (tanggal pengajuan)</label><select id="dHari"><option value="30">30 hari terakhir</option><option value="90">90 hari terakhir</option><option value="365">1 tahun terakhir</option><option value="0">Semua</option></select></div>
+      </div></div>
+      <div id="dKpi" class="grid" style="margin-bottom:16px"></div>
+      <div id="dGrafik" class="grid" style="margin-bottom:16px"></div>
+      <div id="dDaftar"></div>
+    </div>
     <div id="vIzin" class="card"><h2>Daftar izin kerja</h2><div id="tIzin"></div></div>
     <div id="vAju" class="card hidden"><h2 id="judulAju">Ajukan izin kerja</h2>
       <form id="fAju">
@@ -180,16 +191,16 @@ async function muatUser() {
 
 function tampil(v) {
   if (v !== 'Aju' && editAju) resetAju();
-  ['Izin','Aju','Dok','Kon','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
+  ['Dash','Izin','Aju','Dok','Kon','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
   document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === v));
-  ({Izin:muatIzin,Aju:muatAju,Dok:muatDok,Kon:muatKon,User:muatUser}[v])().catch(e => alert(e.message));
+  ({Dash:muatDash,Izin:muatIzin,Aju:muatAju,Dok:muatDok,Kon:muatKon,User:muatUser}[v])().catch(e => alert(e.message));
 }
 
 async function mulai(d) {
   user = d;
   $('#nama').textContent = d.nama;
   $('#info').textContent = (LABEL[d.peran] || d.peran) + (d.peran === 'PENGAWAS' ? (d.kontraktorNama ? ' kontraktor ' + d.kontraktorNama : ' internal') : '') + ' - ' + d.perusahaanNama;
-  const menu = [['Izin','Izin kerja']];
+  const menu = [['Dash','Dashboard'],['Izin','Izin kerja']];
   ref = ref || await api('ref');
   if (d.peran === 'PENGAWAS') menu.push(['Aju','Ajukan izin']);
   if (['ADMIN_GROUP','ADMIN','HSE'].includes(d.peran)) menu.push(['Kon','Kontraktor']);
@@ -202,7 +213,7 @@ async function mulai(d) {
   $('#nav').innerHTML = menu.map(m => '<button type="button" data-v="' + m[0] + '">' + m[1] + '</button>').join('');
   $('#nav').onclick = e => { const v = e.target.dataset.v; if (v) { if (v === 'Aju') resetAju(); tampil(v); } };
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
-  tampil('Izin');
+  tampil(d.peran === 'PENGAWAS' ? 'Izin' : 'Dash');
 }
 
 const menunggu = b => (user.peran === 'HSE' && ['Diajukan','Penyelesaian HSE'].includes(b.Status)) || (user.peran === 'KTT' && ['Terverifikasi HSE','Penyelesaian KTT'].includes(b.Status));
@@ -262,6 +273,27 @@ $('#bPdf').onclick = async () => {
   } catch (err) { $('#eDok').textContent = err.message; }
   $('#bPdf').disabled = false;
 };
+const hb = (judul, o, urut) => {
+  const k = Object.entries(o); if (!urut) k.sort((a, b) => b[1] - a[1]);
+  const m = Math.max(1, ...k.map(x => x[1]));
+  return '<div class="card"><h2>' + judul + '</h2>' + (k.length ? k.map(x => '<div class="hb"><span>' + esc(x[0]) + '</span><i style="width:' + Math.round(x[1] / m * 40) + '%"></i><b>' + x[1] + '</b></div>').join('') : '<p class="kosong">Belum ada data.</p>') + '</div>';
+};
+async function muatDash() {
+  const grup = ['ADMIN_GROUP','GROUP_VIEWER'].includes(user.peran);
+  $('#fPtW').classList.toggle('hidden', !grup);
+  if (grup && !$('#dPt').innerHTML) $('#dPt').innerHTML = '<option value="">Semua perusahaan</option>' + ref.perusahaan.map(p => '<option value="' + esc(p.ID) + '">' + esc(p.Nama) + '</option>').join('');
+  const d = await api('dashboard', {perusahaan:$('#dPt').value, hari:Number($('#dHari').value)});
+  const kpi = [['Total izin', d.total, ''], ['Sedang berlaku', d.aktif, ''], ['Menunggu tindakan', d.menunggu, ''], ['Melewati masa berlaku, belum ditutup', d.lewat.length, d.lewat.length ? 'awas' : ''],
+    ['Berakhir dalam 2 hari', d.segera.length, d.segera.length ? 'awas' : ''], ['Ditutup', d.ditutup, '']];
+  $('#dKpi').innerHTML = kpi.map(x => '<div class="kpi ' + x[2] + '"><b>' + x[1] + '</b><span>' + x[0] + '</span></div>').join('');
+  $('#dGrafik').innerHTML = hb('Menurut status', d.status) + hb('Menurut jenis izin', d.jenis) + (grup ? hb('Menurut perusahaan', d.perusahaan) : '') + hb('Izin diajukan per bulan', d.tren, true);
+  const kol = [['No. izin','NoIzin'],['Perusahaan','Perusahaan'],['Jenis','Jenis'],['Lokasi','Lokasi'],['Berakhir','TglSelesai'],['','ID',id => '<button class="lain" data-doc="' + esc(id) + '">Buka</button>',1]];
+  const daftar = (j, rows) => rows.length ? '<div class="card" style="margin-bottom:16px"><h2>' + j + '</h2>' + tabel(kol, rows) + '</div>' : '';
+  $('#dDaftar').innerHTML = daftar('Melewati masa berlaku dan belum ditutup', d.lewat) + daftar('Berakhir dalam 2 hari', d.segera) +
+    (d.iujp.length ? '<div class="card"><h2>IUJP kontraktor berakhir dalam 30 hari atau sudah lewat</h2>' + tabel([['Kontraktor','Nama'],['No. IUJP','IUJP_No'],['Berlaku s.d.','Berlaku'],['Sisa hari','Sisa']], d.iujp) + '</div>' : '');
+}
+$('#dPt').onchange = $('#dHari').onchange = () => muatDash().catch(e => alert(e.message));
+$('#dDaftar').onclick = e => e.target.dataset.doc && bukaDok(e.target.dataset.doc);
 let permitId = null;
 function bukaDok(id) { permitId = id; tampil('Dok'); }
 const baca = blob => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => gagal(new Error('File tidak bisa dibaca')); r.readAsDataURL(blob); });
