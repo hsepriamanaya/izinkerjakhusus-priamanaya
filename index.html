@@ -67,7 +67,7 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
   </header>
   <main>
     <div id="vIzin" class="card"><h2>Daftar izin kerja</h2><div id="tIzin"></div></div>
-    <div id="vAju" class="card hidden"><h2>Ajukan izin kerja</h2>
+    <div id="vAju" class="card hidden"><h2 id="judulAju">Ajukan izin kerja</h2>
       <form id="fAju">
         <div class="grid">
           <div id="wPt" class="hidden"><label for="aPt">Perusahaan tujuan</label><select id="aPt"></select></div>
@@ -95,7 +95,7 @@ fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8p
       <div id="dKeputusan" class="hidden"><h2 style="margin-top:16px">Keputusan: <span id="dTahap"></span></h2>
         <label for="dCatatan">Catatan (wajib bila dikembalikan untuk revisi)</label><textarea id="dCatatan" rows="3"></textarea>
         <p></p><button id="bSetuju" type="button">Setujui</button> <button class="lain" id="bRevisi" type="button">Kembalikan untuk revisi</button></div><p class="err" id="eDok" role="alert"></p>
-      <button id="bKirim" type="button">Kirim ke HSE</button>
+      <button id="bKirim" type="button">Kirim ke HSE</button> <button class="lain hidden" id="bUbahIsi" type="button">Ubah isian form</button>
     </div>
     <div id="vKon" class="hidden">
       <div class="card" style="margin-bottom:16px"><h2>Tambah kontraktor</h2>
@@ -179,6 +179,7 @@ async function muatUser() {
 }
 
 function tampil(v) {
+  if (v !== 'Aju' && editAju) resetAju();
   ['Izin','Aju','Dok','Kon','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
   document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === v));
   ({Izin:muatIzin,Aju:muatAju,Dok:muatDok,Kon:muatKon,User:muatUser}[v])().catch(e => alert(e.message));
@@ -199,7 +200,7 @@ async function mulai(d) {
     $('#uPt').innerHTML = ref.perusahaan.filter(p => d.peran === 'ADMIN_GROUP' || p.ID === d.perusahaan).map(p => '<option value="' + esc(p.ID) + '">' + esc(p.Nama) + '</option>').join('');
   }
   $('#nav').innerHTML = menu.map(m => '<button type="button" data-v="' + m[0] + '">' + m[1] + '</button>').join('');
-  $('#nav').onclick = e => e.target.dataset.v && tampil(e.target.dataset.v);
+  $('#nav').onclick = e => { const v = e.target.dataset.v; if (v) { if (v === 'Aju') resetAju(); tampil(v); } };
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   tampil('Izin');
 }
@@ -239,6 +240,18 @@ $('#dOps').onclick = async e => {
   } catch (err) { $('#eDok').textContent = err.message; }
   e.target.disabled = false;
 };
+let editAju = null, detailKini = null;
+function resetAju() {
+  editAju = null; $('#fAju').reset(); $('#judulAju').textContent = 'Ajukan izin kerja'; $('#bAju').textContent = 'Ajukan izin';
+}
+$('#bUbahIsi').onclick = async () => {
+  const t = detailKini, i = t.isi;
+  editAju = permitId; await muatAju(); tampil('Aju');
+  [['aJenis','jenis'],['aProj','project'],['aLok','lokasi'],['aLat','lat'],['aLng','lng'],['aJml','jumlah'],['aMul','tglMulai'],['aSel','tglSelesai'],['aShift','shift'],['aDesk','deskripsi'],['aAlat','peralatan']]
+    .forEach(f => $('#' + f[0]).value = i[f[1]] == null ? '' : i[f[1]]);
+  document.querySelectorAll('#cek input[data-b]').forEach(c => c.checked = (t.cek[c.dataset.b] || []).includes(c.value));
+  $('#wPt').classList.add('hidden'); $('#judulAju').textContent = 'Ubah isian izin kerja'; $('#bAju').textContent = 'Simpan perubahan';
+};
 let permitId = null;
 function bukaDok(id) { permitId = id; tampil('Dok'); }
 const baca = blob => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => gagal(new Error('File tidak bisa dibaca')); r.readAsDataURL(blob); });
@@ -255,13 +268,13 @@ async function muatDok() {
   const [d, t] = await Promise.all([api('dokumen.list', {permitId}), api('permits.detail', {permitId})]);
   const boleh = user.peran === 'PENGAWAS' && ['Draft','Revisi'].includes(d.status);
   $('#dJudul').textContent = d.noIzin || 'Izin belum bernomor';
-  $('#dInfo').textContent = 'Status: ' + t.tampil + '. Format PDF, JPG, atau PNG, maksimal 5 MB per file.' + (boleh ? (d.status === 'Revisi' ? ' Perbaiki dokumen sesuai catatan pada riwayat, lalu kirim ulang.' : ' Nomor izin diberikan saat izin dikirim ke HSE.') : '');
+  $('#dInfo').textContent = 'Status: ' + t.tampil + '. Format PDF, JPG, atau PNG, maksimal 5 MB per file.' + (boleh ? (d.status === 'Revisi' ? ' Perbaiki isian form dan dokumen sesuai catatan pada riwayat, lalu kirim ulang.' : ' Nomor izin diberikan saat izin dikirim ke HSE.') : '');
   $('#dSyarat').innerHTML = '<div class="scroll"><table><thead><tr><th>Dokumen</th><th>File</th><th></th></tr></thead><tbody>' + d.syarat.map(s => {
     const f = d.dok.find(x => x.Jenis === s.kode);
     return '<tr><td>' + esc(s.label) + (s.wajib ? ' (wajib)' : '') + '</td><td>' + (f ? '<button class="lain" data-buka="' + esc(f.ID) + '">' + esc(f.Nama) + '</button>' : (s.wajib ? 'Belum ada' : '-')) + '</td><td>' +
       (boleh ? '<input type="file" accept="application/pdf,image/jpeg,image/png" data-up="' + s.kode + '" aria-label="Unggah ' + esc(s.label) + '">' : '') + '</td></tr>';
   }).join('') + '</tbody></table></div>';
-  $('#bKirim').classList.toggle('hidden', !boleh);
+  $('#bKirim').classList.toggle('hidden', !boleh); $('#bUbahIsi').classList.toggle('hidden', !boleh); detailKini = t;
   const R = t.p;
   $('#dRingkas').innerHTML = '<div class="scroll"><table><tbody>' + [['Jenis izin',R.Jenis],['Perusahaan',R.Perusahaan],['Kontraktor',R.Kontraktor],['Pemohon',R.Pemohon],['Project',R.Project],['Lokasi',R.Lokasi],
     ['Koordinat',R.Koordinat],['Jumlah pekerja',R.Pekerja],['Masa berlaku',R.Periode],['Shift',R.Shift],['Deskripsi kerja',R.Deskripsi],['Peralatan',R.Peralatan]]
@@ -332,6 +345,7 @@ async function muatAju() {
       ref.cek[k].map(i => '<label class="cb"><input type="checkbox" data-b="' + k + '" value="' + esc(i) + '"> ' + esc(i) + '</label>').join('') + '</div></fieldset>').join('');
     $('#aJenis').innerHTML = ref.jenis.map(j => '<option value="' + esc(j[0]) + '">' + esc(j[1]) + '</option>').join('');
   }
+  if (editAju) return;  // mode ubah: perusahaan tujuan tidak berubah
   const k = await api('kontraktor.list');
   kon = user.kontraktor ? k[0] : null;
   const ids = kon ? String(kon.Perusahaan_IDs).split(',').map(s => s.trim()) : [user.perusahaan];
@@ -350,9 +364,9 @@ $('#fAju').onsubmit = async e => {
   const cek = {C:[],D:[],E:[],F:[]}, v = id => $('#' + id).value;
   e.target.querySelectorAll('input[data-b]:checked').forEach(i => cek[i.dataset.b].push(i.value));
   try {
-    const id = await api('permits.create', {perusahaan:v('aPt'), jenis:v('aJenis'), project:v('aProj'), lokasi:v('aLok'), lat:v('aLat'), lng:v('aLng'),
+    const id = await api(editAju ? 'permits.update' : 'permits.create', {permitId:editAju, perusahaan:v('aPt'), jenis:v('aJenis'), project:v('aProj'), lokasi:v('aLok'), lat:v('aLat'), lng:v('aLng'),
       jumlah:v('aJml'), tglMulai:v('aMul'), tglSelesai:v('aSel'), shift:v('aShift'), deskripsi:v('aDesk'), peralatan:v('aAlat'), cek});
-    e.target.reset(); bukaDok(id);
+    const pid = editAju || id; resetAju(); bukaDok(pid);
   } catch (err) { $('#eAju').textContent = err.message; }
   $('#bAju').disabled = false;
 };
