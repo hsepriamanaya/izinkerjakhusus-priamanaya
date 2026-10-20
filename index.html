@@ -1,667 +1,552 @@
-/**
- * Izin Kerja Khusus - Priamanaya Group | Tahap 1
- * Script ini dipasang di Google Sheets (Extensions > Apps Script).
- * Semua aturan akses dijalankan di sini; HTML di GitHub hanya tampilan.
- */
-const SESI_JAM = 8, MAX_GAGAL = 5, KUNCI_DETIK = 900, ITERASI = 1000;
-const PERAN = ['ADMIN_GROUP', 'ADMIN', 'HSE', 'KTT', 'PENGAWAS', 'GROUP_VIEWER'];
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Izin Kerja Khusus - Priamanaya Group</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#eef0f1;--panel:#fff;--ink:#14232b;--muted:#5b6b73;--line:#d3d9dc;--hv:#f5c400;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1a20;--panel:#172831;--ink:#e8eef0;--muted:#9fb0b8;--line:#2b414c;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.stripe{height:12px;background:repeating-linear-gradient(-45deg,var(--hv) 0 14px,#14232b 14px 28px)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px}
+#login{max-width:380px;margin:12vh auto 0;padding:0 16px}
+#login .card{padding:0;overflow:hidden}#login form{padding:20px}
+h1{font-size:1.25rem;margin:0 0 4px}h2{font-size:1.1rem;margin:0 0 12px}
+p.sub{margin:0 0 16px;color:var(--muted)}
+label{display:block;font-weight:600;margin:12px 0 4px}
+input,select,textarea{width:100%;min-height:44px;padding:8px 10px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:4px}
+button{min-height:44px;padding:8px 18px;font:inherit;font-weight:600;border:0;border-radius:4px;background:var(--ink);color:var(--bg);cursor:pointer}
+button.lain{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.6}
+:focus-visible{outline:3px solid var(--hv);outline-offset:2px}
+.err{color:var(--err);min-height:1.5em;margin:10px 0 0}
+header{background:var(--panel);border-bottom:1px solid var(--line)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:10px 16px;max-width:980px;margin:0 auto}
+.bar small{color:var(--muted);display:block}
+nav{display:flex;gap:4px;max-width:980px;margin:0 auto;padding:0 12px}
+nav button{background:none;color:var(--muted);border-radius:0;border-bottom:3px solid transparent}
+nav button[aria-current=true]{color:var(--ink);border-color:var(--hv)}
+main{max-width:980px;margin:16px auto;padding:0 16px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+.kosong{color:var(--muted);padding:12px 0}
+.grid{display:grid;gap:0 16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.cb{display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0}.cb input{width:auto;min-height:0}
+fieldset{border:1px solid var(--line);border-radius:4px;margin:16px 0;padding:8px 12px}legend{font-weight:600;padding:0 6px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px}.kpi b{display:block;font-size:1.8rem;line-height:1.1}.kpi span{color:var(--muted)}.kpi.awas{border-color:var(--err)}.kpi.awas b{color:var(--err)}
+.hb{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:.9rem}.hb span{width:42%}.hb i{display:block;height:10px;background:var(--hv);border-radius:2px;min-width:3px}
+.leaflet-container{font:inherit}.leaflet-container input{width:auto;min-height:0;margin:0}.leaflet-container label{display:inline;font-weight:400;margin:0}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
 
-const SKEMA = {
-  Perusahaan: ['ID', 'Nama', 'Awalan', 'Logo', 'Aktif'],
-  Kontraktor: ['ID', 'Nama', 'IUJP_No', 'IUJP_Berlaku', 'Perusahaan_IDs', 'Aktif'],
-  Users: ['ID', 'Username', 'Nama', 'Hash', 'Salt', 'Peran', 'Perusahaan_ID', 'Kontraktor_ID', 'Aktif', 'Dibuat'],
-  Permits: ['ID', 'NoIzin', 'Perusahaan_ID', 'Kontraktor_ID', 'JenisIzin', 'Project', 'Lokasi', 'Lat', 'Lng',
-    'JumlahPekerja', 'Deskripsi', 'Peralatan', 'TglMulai', 'TglSelesai', 'Shift', 'Status', 'Pemohon', 'Dibuat'],
-  PermitChecklist: ['Permit_ID', 'Bagian', 'Item', 'Nilai'],
-  Documents: ['ID', 'Permit_ID', 'Jenis', 'Link', 'Status', 'Catatan', 'Diunggah_Oleh', 'Waktu'],
-  Approvals: ['ID', 'Permit_ID', 'Tahap', 'Oleh', 'Keputusan', 'Catatan', 'Waktu'],
-  Inspections: ['ID', 'Permit_ID', 'Waktu', 'Oleh', 'Catatan', 'LEL', 'Foto'],
-  Cancellations: ['ID', 'Permit_ID', 'Jenis', 'Alasan', 'Oleh', 'MewakiliKTT', 'Waktu'],
-  Master: ['Kunci', 'Nilai'],
-  AuditLog: ['Waktu', 'User', 'Aksi', 'Detail']
-};
+<section id="login">
+  <div class="card">
+    <div class="stripe"></div>
+    <form id="fLogin">
+      <h1>Izin Kerja Khusus</h1>
+      <p class="sub">Priamanaya Group</p>
+      <label for="un">Username</label><input id="un" autocomplete="username" required>
+      <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required>
+      <p class="err" id="eLogin" role="alert"></p>
+      <button id="bLogin" type="submit">Masuk</button>
+    </form>
+  </div>
+</section>
 
-/* ---------- Menu & penyiapan (dijalankan admin dari Google Sheets) ---------- */
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Izin Kerja')
-    .addItem('Siapkan sheet', 'setupSheets')
-    .addItem('Buat admin group', 'buatAdminAwal').addToUi();
+<section id="app" class="hidden">
+  <div class="stripe"></div>
+  <header>
+    <div class="bar">
+      <div><strong id="nama"></strong><small id="info"></small></div>
+      <button class="lain" id="bKeluar" type="button">Keluar</button>
+    </div>
+    <nav id="nav"></nav>
+  </header>
+  <main>
+    <div id="vDash" class="hidden">
+      <div class="card" style="margin-bottom:16px"><div class="grid">
+        <div id="fPtW"><label for="dPt">Perusahaan</label><select id="dPt"></select></div>
+        <div><label for="dHari">Periode (tanggal pengajuan)</label><select id="dHari"><option value="30">30 hari terakhir</option><option value="90">90 hari terakhir</option><option value="365">1 tahun terakhir</option><option value="0">Semua</option></select></div>
+      </div></div>
+      <div id="dKpi" class="grid" style="margin-bottom:16px"></div>
+      <div class="card" style="margin-bottom:16px"><h2>Peta pekerjaan yang sedang berlaku</h2>
+        <div id="mapDash" style="height:380px;border-radius:6px"></div>
+        <p class="sub" id="infoPetaDash"></p><p id="legendaDash" style="font-size:.85rem"></p>
+        <button class="lain" id="bKml" type="button">Ekspor KML</button></div>
+      <div id="dGrafik" class="grid" style="margin-bottom:16px"></div>
+      <div id="dDaftar"></div>
+    </div>
+    <div id="vIzin" class="card"><h2>Daftar izin kerja</h2><div id="tIzin"></div></div>
+    <div id="vAju" class="card hidden"><h2 id="judulAju">Ajukan izin kerja</h2>
+      <form id="fAju">
+        <div class="grid">
+          <div id="wPt" class="hidden"><label for="aPt">Perusahaan tujuan</label><select id="aPt"></select></div>
+          <div><label for="aJenis">Jenis izin</label><select id="aJenis"></select></div>
+          <div><label for="aProj">Nama project</label><input id="aProj" required></div>
+          <div><label for="aLok">Lokasi kerja</label><input id="aLok" required></div>
+          <div><label for="aLat">Latitude (opsional; boleh tempel pasangan &quot;lat, lng&quot; dari Google Maps)</label><input id="aLat" inputmode="decimal"></div>
+          <div><label for="aLng">Longitude (opsional)</label><input id="aLng" inputmode="decimal"></div>
+          <div><label for="aE">UTM 48S - Easting (X)</label><input id="aE" inputmode="numeric"></div>
+          <div><label for="aN">UTM 48S - Northing (Y)</label><input id="aN" inputmode="numeric"></div>
+          <div><label for="aJml">Jumlah pekerja</label><input id="aJml" type="number" min="1" required></div>
+          <div><label for="aShift">Shift pelaksanaan</label><input id="aShift" placeholder="mis. Shift 1" required></div>
+          <div><label for="aMul">Tanggal mulai</label><input id="aMul" type="date" required></div>
+          <div><label for="aSel">Tanggal selesai (maks. 7 hari)</label><input id="aSel" type="date" required></div>
+        </div>
+        <label>Titik lokasi pekerjaan (klik peta, isi koordinat, atau gunakan GPS)</label>
+        <div id="mapAju" style="height:320px;border-radius:6px"></div>
+        <p class="sub"><button class="lain" id="bGps" type="button">Gunakan lokasi saya</button> <button class="lain" id="bHapusTitik" type="button">Hapus titik</button> <span id="infoGps"></span></p>
+        <label for="aDesk">Deskripsi kerja</label><textarea id="aDesk" rows="3" placeholder="mis. pengelasan dengan menggunakan gas asetilin" required></textarea>
+        <label for="aAlat">Jenis peralatan yang digunakan</label><input id="aAlat">
+        <div id="cek"></div>
+      </form>
+      <p class="err" id="eAju" role="alert"></p>
+      <button id="bAju" type="submit" form="fAju">Ajukan izin</button>
+    </div>
+    <div id="vDok" class="card hidden">
+      <button class="lain" id="bKembali" type="button">Kembali ke daftar</button>
+      <h2 id="dJudul" style="margin-top:16px"></h2><p class="sub" id="dInfo"></p><div id="dRingkas"></div><div id="wMapDok" class="hidden"><div id="mapDok" style="height:260px;margin:12px 0 4px;border-radius:6px"></div><p class="sub" id="utmDok"></p></div><h2 style="margin-top:16px">Dokumen kelengkapan</h2>
+      <div id="dSyarat"></div><div id="dRiwayat"></div><div id="dOps"></div>
+      <div id="dKeputusan" class="hidden"><h2 style="margin-top:16px">Keputusan: <span id="dTahap"></span></h2>
+        <label for="dCatatan">Catatan (wajib bila dikembalikan untuk revisi)</label><textarea id="dCatatan" rows="3"></textarea>
+        <p></p><button id="bSetuju" type="button">Setujui</button> <button class="lain" id="bRevisi" type="button">Kembalikan untuk revisi</button></div><p class="err" id="eDok" role="alert"></p>
+      <button id="bKirim" type="button">Kirim ke HSE</button> <button class="lain hidden" id="bUbahIsi" type="button">Ubah isian form</button> <button class="lain hidden" id="bPdf" type="button">Unduh PDF izin</button>
+    </div>
+    <div id="vKon" class="hidden">
+      <div class="card" style="margin-bottom:16px"><h2>Tambah kontraktor</h2>
+        <form id="fKon" class="grid">
+          <div><label for="kNama">Nama kontraktor</label><input id="kNama" required></div>
+          <div><label for="kIujp">Nomor IUJP</label><input id="kIujp" required></div>
+          <div><label for="kBer">IUJP berlaku sampai</label><input id="kBer" type="date" required></div>
+          <div><label>Ditunjuk untuk</label><div id="kPt"></div></div>
+          <div><label class="cb"><input type="checkbox" id="kAktif" checked> Kontraktor aktif</label></div>
+        </form>
+        <p class="err" id="eKon" role="alert"></p>
+        <button id="bKon" type="submit" form="fKon">Simpan kontraktor</button> <button class="lain hidden" id="bKonBatal" type="button">Batal</button>
+      </div>
+      <div class="card"><h2>Kontraktor dan IUJP</h2><div id="tKon"></div></div>
+    </div>
+    <div id="vUser" class="hidden">
+      <div class="card" style="margin-bottom:16px">
+        <h2>Tambah pengguna</h2>
+        <form id="fUser" class="grid">
+          <div><label for="uUn">Username</label><input id="uUn" required></div>
+          <div><label for="uNama">Nama lengkap</label><input id="uNama" required></div>
+          <div><label for="uPw">Password awal</label><input id="uPw" type="password" minlength="8" required></div>
+          <div><label for="uPeran">Peran</label><select id="uPeran"></select></div>
+          <div><label for="uPt">Perusahaan</label><select id="uPt"></select></div>
+          <div><label for="uKon">Kontraktor (untuk pengawas kontraktor)</label><select id="uKon"></select></div>
+          <div><label class="cb"><input type="checkbox" id="uAktif" checked> Akun aktif</label></div>
+        </form>
+        <p class="err" id="eUser" role="alert"></p>
+        <button id="bUser" type="submit" form="fUser">Simpan pengguna</button> <button class="lain hidden" id="bUserBatal" type="button">Batal</button>
+      </div>
+      <div class="card"><h2>Pengguna</h2><div id="tUser"></div></div>
+    </div>
+  </main>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// URL Web App Apps Script (berakhiran /exec)
+const API_URL = 'https://script.google.com/macros/s/AKfycbxPE4IETa-ikaaOW6lH9lqYF9lTfeOPwyktx1j-zdLDHeA0YizWZzTnztKo-Bqzd42Bhg/exec';
+const LABEL = {ADMIN_GROUP:'Admin Group',ADMIN:'Admin Perusahaan',HSE:'HSE',KTT:'Kepala Teknik Tambang',PENGAWAS:'Pengawas',GROUP_VIEWER:'Pemantau Group'};
+const $ = s => document.querySelector(s);
+let token = null, user = null, ref = null;
+try { token = sessionStorage.getItem('t'); } catch (e) {}
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tgl = v => v ? String(v).slice(0, 10) : '';
+
+// Body dikirim sebagai teks biasa agar browser tidak membuat preflight CORS
+async function api(aksi, data) {
+  const r = await fetch(API_URL, {method:'POST', body:JSON.stringify(Object.assign({aksi, token}, data))});
+  const teks = await r.text();
+  let j;
+  try { j = JSON.parse(teks); }
+  catch (e) { throw new Error('API tidak menjawab dengan benar (kode ' + r.status + '). Periksa API_URL dan akses Web App.'); }
+  if (!j.ok) { if (/Sesi/.test(j.error)) keluar(true); throw new Error(j.error); }
+  return j.data;
+}
+function simpanToken(t) { token = t; try { t ? sessionStorage.setItem('t', t) : sessionStorage.removeItem('t'); } catch (e) {} }
+function keluar(paksa) {
+  simpanToken(null); user = null;
+  $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
+  if (paksa) $('#eLogin').textContent = 'Sesi berakhir, silakan masuk lagi.';
 }
 
-function setupSheets() {
-  const ss = SpreadsheetApp.getActive();
-  Object.keys(SKEMA).forEach(n => {
-    const s = ss.getSheetByName(n) || ss.insertSheet(n);
-    if (s.getLastRow() === 0) {
-      s.getRange(1, 1, 1, SKEMA[n].length).setValues([SKEMA[n]]).setFontWeight('bold');
-      s.setFrozenRows(1);
-    }
-  });
-  if (tabel('Perusahaan').getLastRow() === 1) {
-    tambah('Perusahaan', { ID: 'DP', Nama: 'PT Dizamatra Powerindo', Awalan: 'DP', Aktif: true });
-    tambah('Perusahaan', { ID: 'PE', Nama: 'PT Priamanaya Energi', Awalan: 'PE', Aktif: true });
-    tambah('Perusahaan', { ID: 'AM', Nama: 'PT Asta Maharanita', Awalan: 'AM', Aktif: true });
+function tabel(kolom, baris) {
+  if (!baris.length) return '';
+  return '<div class="scroll"><table><thead><tr>' + kolom.map(k => '<th>' + k[0] + '</th>').join('') + '</tr></thead><tbody>' +
+    baris.map(b => '<tr>' + kolom.map(k => '<td>' + (k[3] ? k[2](b[k[1]], b) : esc(k[2] ? k[2](b[k[1]]) : b[k[1]])) + '</td>').join('') + '</tr>').join('') +
+    '</tbody></table></div>';
+}
+
+async function muatIzin() {
+  const d = (await api('permits.list')).sort((a, b) => menunggu(b) - menunggu(a)), n = d.filter(menunggu).length;
+  $('#tIzin').innerHTML = (n ? '<p><strong>' + n + ' izin menunggu tindakan Anda.</strong></p>' : '') + tabel([['No. izin','NoIzin',n => n || '(belum bernomor)'],['Jenis','JenisIzin'],['Lokasi','Lokasi'],['Mulai','TglMulai',tgl],['Selesai','TglSelesai',tgl],['Status','StatusTampil'],['','ID',(id, b) => '<button class="' + (menunggu(b) ? '' : 'lain') + '" data-doc="' + esc(id) + '">' + (menunggu(b) ? 'Tinjau' : 'Buka') + '</button>',1]], d)
+    || '<p class="kosong">Belum ada izin kerja. Form pengajuan dibuka di tahap berikutnya.</p>';
+}
+async function muatUser() {
+  const d = await api('users.list'), k = await api('kontraktor.list');
+  $('#uKon').innerHTML = '<option value="">Bukan kontraktor</option>' + k.map(x => '<option value="' + esc(x.ID) + '">' + esc(x.Nama) + '</option>').join('');
+  dataUser = d;
+  $('#tUser').innerHTML = tabel([['','Username',n => '<button class="lain" data-eu="' + esc(n) + '">Ubah</button>',1],['Username','Username'],['Nama','Nama'],['Peran','Peran',p => LABEL[p] || p],['Kontraktor','Kontraktor_ID',(id, b) => esc(b.Peran !== 'PENGAWAS' ? '-' : ((k.find(x => x.ID === id) || {}).Nama || 'Internal')),1],['Perusahaan','Perusahaan_ID',p => p || 'Group'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d);
+}
+
+function tampil(v) {
+  if (v !== 'Aju' && editAju) resetAju();
+  ['Dash','Izin','Aju','Dok','Kon','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
+  document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === v));
+  ({Dash:muatDash,Izin:muatIzin,Aju:muatAju,Dok:muatDok,Kon:muatKon,User:muatUser}[v])().catch(e => alert(e.message));
+}
+
+async function mulai(d) {
+  user = d;
+  $('#nama').textContent = d.nama;
+  $('#info').textContent = (LABEL[d.peran] || d.peran) + (d.peran === 'PENGAWAS' ? (d.kontraktorNama ? ' kontraktor ' + d.kontraktorNama : ' internal') : '') + ' - ' + d.perusahaanNama;
+  const menu = [['Dash','Dashboard'],['Izin','Izin kerja']];
+  ref = ref || await api('ref');
+  if (d.peran === 'PENGAWAS') menu.push(['Aju','Ajukan izin']);
+  if (['ADMIN_GROUP','ADMIN','HSE'].includes(d.peran)) menu.push(['Kon','Kontraktor']);
+  if (d.peran === 'ADMIN' || d.peran === 'ADMIN_GROUP') {
+    menu.push(['User','Pengguna']);
+    ref = ref || await api('ref');
+    $('#uPeran').innerHTML = ref.peran.filter(p => d.peran === 'ADMIN_GROUP' || ['HSE','KTT','PENGAWAS'].includes(p)).map(p => '<option value="' + p + '">' + esc(LABEL[p]) + '</option>').join('');
+    $('#uPt').innerHTML = ref.perusahaan.filter(p => d.peran === 'ADMIN_GROUP' || p.ID === d.perusahaan).map(p => '<option value="' + esc(p.ID) + '">' + esc(p.Nama) + '</option>').join('');
   }
-  const p = PropertiesService.getScriptProperties();
-  if (!p.getProperty('TOKEN_SECRET')) p.setProperty('TOKEN_SECRET', Utilities.getUuid() + Utilities.getUuid());
-  SpreadsheetApp.getUi().alert('Sheet siap. Lanjutkan dengan "Buat admin group".');
+  $('#nav').innerHTML = menu.map(m => '<button type="button" data-v="' + m[0] + '">' + m[1] + '</button>').join('');
+  $('#nav').onclick = e => { const v = e.target.dataset.v; if (v) { if (v === 'Aju') resetAju(); tampil(v); } };
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  tampil(d.peran === 'PENGAWAS' ? 'Izin' : 'Dash');
 }
 
-function buatAdminAwal() {
-  const ui = SpreadsheetApp.getUi();
-  const u = ui.prompt('Username admin group').getResponseText().trim().toLowerCase();
-  const pw = ui.prompt('Password (minimal 8 karakter)').getResponseText();
-  if (!u || pw.length < 8) return ui.alert('Username kosong atau password kurang dari 8 karakter.');
-  buatUser({ username: u, nama: 'Admin Group', password: pw, peran: 'ADMIN_GROUP', perusahaan: '' });
-  ui.alert('Admin group dibuat: ' + u);
-}
-
-/* ---------- Helper data ---------- */
-const tabel = n => SpreadsheetApp.getActive().getSheetByName(n);
-function baris(n) {
-  const v = tabel(n).getDataRange().getValues(), h = v.shift();
-  return v.map(r => { const o = {}; h.forEach((k, j) => o[k] = r[j]); return o; });
-}
-function tambah(n, o) { tabel(n).appendRow(SKEMA[n].map(k => o[k] === undefined ? '' : o[k])); }
-const aktif = x => x.Aktif === true || x.Aktif === 'TRUE';
-const sama = (a, b) => String(a) === String(b);
-function audit(user, aksi, detail) { tambah('AuditLog', { Waktu: new Date(), User: user, Aksi: aksi, Detail: detail || '' }); }
-
-/* ---------- Password & token ---------- */
-function hash(pw, salt) {
-  let d = salt + pw;
-  for (let i = 0; i < ITERASI; i++)
-    d = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, d + salt));
-  return d;
-}
-const rahasia = () => PropertiesService.getScriptProperties().getProperty('TOKEN_SECRET');
-function tandatangan(p) { return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(p, rahasia())); }
-function buatToken(u) {
-  const p = Utilities.base64EncodeWebSafe(JSON.stringify({ id: u.ID, exp: Date.now() + SESI_JAM * 3600000 }));
-  return p + '.' + tandatangan(p);
-}
-function userDariToken(t) {
-  const SALAH = 'Sesi tidak valid, silakan login lagi';
-  if (!t || t.indexOf('.') < 0) throw new Error(SALAH);
-  const [p, s] = t.split('.');
-  if (tandatangan(p) !== s) throw new Error(SALAH);
-  const d = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(p)).getDataAsString());
-  if (d.exp < Date.now()) throw new Error('Sesi berakhir, silakan login lagi');
-  // Peran dan status aktif selalu dibaca ulang dari sheet, bukan dari token
-  const u = baris('Users').find(x => sama(x.ID, d.id) && aktif(x));
-  if (!u) throw new Error(SALAH);
-  return u;
-}
-
-/* ---------- Aturan akses per perusahaan ---------- */
-const lihatSemua = u => u.Peran === 'ADMIN_GROUP' || u.Peran === 'GROUP_VIEWER';
-function bolehLihatPermit(u, p) {
-  if (lihatSemua(u)) return true;
-  if (u.Peran === 'PENGAWAS' && u.Kontraktor_ID) return sama(p.Kontraktor_ID, u.Kontraktor_ID);
-  return sama(p.Perusahaan_ID, u.Perusahaan_ID);
-}
-const wajib = (u, peran) => { if (peran.indexOf(u.Peran) < 0) throw new Error('Anda tidak berwenang untuk aksi ini'); };
-
-/* ---------- Pengguna ---------- */
-function buatUser(d) {
-  if (PERAN.indexOf(d.peran) < 0) throw new Error('Peran tidak dikenal');
-  if (!d.username || !d.nama) throw new Error('Username dan nama wajib diisi');
-  if (String(d.password || '').length < 8) throw new Error('Password minimal 8 karakter');
-  const un = String(d.username).trim().toLowerCase();
-  if (baris('Users').some(x => String(x.Username).toLowerCase() === un)) throw new Error('Username sudah dipakai');
-  const grup = d.peran === 'ADMIN_GROUP' || d.peran === 'GROUP_VIEWER';
-  if (!grup && !baris('Perusahaan').some(x => sama(x.ID, d.perusahaan) && aktif(x))) throw new Error('Perusahaan tidak valid');
-  if (d.kontraktor && !baris('Kontraktor').some(k => sama(k.ID, d.kontraktor) && aktif(k) && terhubung(k, d.perusahaan))) throw new Error('Kontraktor belum ditunjuk untuk perusahaan ini');
-  const salt = Utilities.getUuid();
-  tambah('Users', { ID: Utilities.getUuid(), Username: un, Nama: d.nama, Hash: hash(d.password, salt), Salt: salt,
-    Peran: d.peran, Perusahaan_ID: grup ? '' : d.perusahaan, Kontraktor_ID: d.kontraktor || '', Aktif: true, Dibuat: new Date() });
-}
-
-/* ---------- Tahap 2: referensi, nomor izin, validasi ---------- */
-const JENIS = [['PANAS', 'Pekerjaan panas'], ['RUANG_TERBATAS', 'Ruang terbatas'], ['KETINGGIAN', 'Pekerjaan di ketinggian'],
-  ['PENGGALIAN', 'Penggalian'], ['LISTRIK', 'Kelistrikan'], ['ISOLASI_ENERGI', 'Isolasi energi'], ['PENGANGKATAN', 'Pengangkatan'], ['LAINNYA', 'Lainnya']];
-const CEK = {  // Bagian C-F pada Form F-DP-TL-HSE-28-01
-  C: ['Isolasi energi', 'Listrik', 'Pengerjaan tanah', 'Mengemudi dan off-road', 'Bekerja di ketinggian', 'Pengangkatan', 'Ruang terbatas',
-    'Penanganan material', 'Bahan berbahaya', 'Bekerja di dekat perairan', 'Suhu ekstrem', 'Lainnya'],
-  D: ['Sengatan listrik', 'Arc flash', 'Percikan api', 'Asap', 'Kebakaran peralatan atau bangunan', 'Tertimbun galian (cave-in)',
-    'Terjatuh atau terperosok ke dalam lubang galian', 'Terpeleset, tersandung dan terjatuh pada level yang sama', 'Kendaraan menabrak orang atau peralatan',
-    'Kendaraan terperosok atau terbalik', 'Operator terperangkap di dalam kendaraan', 'Terjatuh dari level yang berbeda', 'Benda yang diangkat terjatuh',
-    'Tertimpa benda yang jatuh', 'Terpukul ayunan benda yang diangkat', 'Crane atau alat angkat ambruk atau terbalik', 'Terjepit, terlindas atau tertabrak peralatan bergerak',
-    'Peralatan bergerak terbalik atau terguling', 'Gas berbahaya (beracun atau mudah terbakar)', 'Kekurangan oksigen', 'Gelap', 'Posisi kerja yang canggung dan tidak ergonomis',
-    'Terpapar bahan kimia berbahaya', 'Terhirup bahan kimia berbahaya', 'Tertimpa/tertimbun muatan material', 'Tertimpa susunan material', 'Menguras tenaga dan bahaya ergonomik',
-    'Heat stress', 'Kebisingan', 'Tertusuk atau tersayat benda tajam', 'Tumpahan bahan berbahaya', 'Debu'],
-  E: ['Proteksi/perlindungan jatuh', 'Pemadam api/kebakaran', 'Jarak aman', 'Sarana jalan keluar', 'Isolasi', 'Pagar/barikade', 'Rambu-rambu, label, prosedur',
-    'Penampung tumpahan (secondary containment)', 'Pencahayaan atau penerangan', 'Ventilasi', 'Sertifikat kompetensi', 'Lain-lain'],
-  F: ['Helm keselamatan', 'Sepatu keselamatan', 'Kacamata keselamatan', 'Sarung tangan kulit', 'Baju kulit', 'Rompi keselamatan', 'Sarung tangan katun',
-    'Sarung tangan karet', 'Perlindungan muka', 'Goggles', 'Pelindung pendengaran', 'Masker', 'Tali keselamatan', 'Lain-lain']
-};
-const ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
-const tz = () => SpreadsheetApp.getActive().getSpreadsheetTimeZone();
-const tglStr = v => v instanceof Date ? Utilities.formatDate(v, tz(), 'yyyy-MM-dd') : String(v || '').replace(/^'/, '').slice(0, 10);
-const terhubung = (k, pt) => String(k.Perusahaan_IDs).split(',').map(s => s.trim()).indexOf(String(pt)) >= 0;
-
-// Format: No urut/IKK/HSE-(DP/PE/AM)/bulan romawi/tahun. Urutan per perusahaan, mulai dari 001 setiap tahun.
-function nomorIzin(pt) {
-  const now = new Date(), th = Utilities.formatDate(now, tz(), 'yyyy'), bln = Number(Utilities.formatDate(now, tz(), 'M'));
-  const awalan = baris('Perusahaan').find(x => sama(x.ID, pt)).Awalan, akhir = '/' + th;
-  const maks = baris('Permits').filter(p => sama(p.Perusahaan_ID, pt) && String(p.NoIzin).slice(-5) === akhir)
-    .reduce((m, p) => Math.max(m, parseInt(p.NoIzin, 10) || 0), 0);
-  return String(maks + 1).padStart(3, '0') + '/IKK/HSE-' + awalan + '/' + ROMAWI[bln] + akhir;
-}
-
-/* ---------- Tahap 2b: dokumen kelengkapan ---------- */
-// Kolom ketiga: 1 = wajib, 2 = wajib bila pemohon kontraktor, 0 = opsional (SOP 5.3 dan 5.5)
-const DOK = [['JSA', 'JSA / SOP kerja aman', 1], ['SURAT_TTK', 'Surat penunjukan KTT untuk tenaga teknik khusus', 1],
-  ['SERTIFIKAT', 'Sertifikat penunjang', 2], ['APD', 'Bukti ketersediaan APD dan peralatan keselamatan', 1],
-  ['SKETSA', 'Sketsa lokasi kerja dan rute penyelamatan', 1], ['LAINNYA', 'Dokumen lain', 0]];
-const MAKS_BYTE = 5 * 1024 * 1024, TIPE = ['application/pdf', 'image/jpeg', 'image/png'];
-const syarat = p => DOK.map(d => ({ kode: d[0], label: d[1], wajib: d[2] === 1 || (d[2] === 2 && !!p.Kontraktor_ID) }));
-const dokAktif = id => baris('Documents').filter(d => sama(d.Permit_ID, id) && d.Status === 'Terunggah');
-function ambilPermit(u, id) {
-  const p = baris('Permits').find(x => sama(x.ID, id));
-  if (!p || !bolehLihatPermit(u, p)) throw new Error('Izin tidak ditemukan');
-  return p;
-}
-function ubahBaris(n, id, o) {
-  const s = tabel(n), v = s.getDataRange().getValues(), h = v[0];
-  for (let i = 1; i < v.length; i++) if (sama(v[i][0], id)) {
-    Object.keys(o).forEach(k => s.getRange(i + 1, h.indexOf(k) + 1).setValue(o[k]));
-    return;
-  }
-}
-function folderIzin(p) {  // File dokumen bersifat pribadi; hanya dibuka lewat API setelah cek hak akses
-  const pr = PropertiesService.getScriptProperties();
-  let root;
-  try { root = DriveApp.getFolderById(pr.getProperty('FOLDER_ROOT')); }
-  catch (e) { root = DriveApp.createFolder('IKK Dokumen - Priamanaya Group'); pr.setProperty('FOLDER_ROOT', root.getId()); }
-  const sub = (par, n) => { const it = par.getFoldersByName(n); return it.hasNext() ? it.next() : par.createFolder(n); };
-  return sub(sub(root, String(p.Perusahaan_ID)), String(p.ID));
-}
-function izinkanDrive() { DriveApp.getRootFolder(); }  // Jalankan sekali dari editor untuk memberi izin Drive
-
-/* ---------- Tahap 5: PDF izin sesuai Form F-DP-TL-HSE-28-01 ---------- */
-const STATUS_PDF = ['Terbit', 'Ditangguhkan', 'Penyelesaian HSE', 'Penyelesaian KTT', 'Ditutup', 'Dibatalkan'];
-const eh = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const waktuStr = d => d ? Utilities.formatDate(new Date(d), tz(), 'dd-MM-yyyy HH:mm') : '-';
-function logoHtml(pt) {  // Kolom Logo di sheet Perusahaan berisi ID file gambar di Google Drive
+const menunggu = b => (user.peran === 'HSE' && ['Diajukan','Penyelesaian HSE'].includes(b.Status)) || (user.peran === 'KTT' && ['Terverifikasi HSE','Penyelesaian KTT'].includes(b.Status));
+$('#bSetuju').onclick = () => putuskan('Setuju');
+$('#bRevisi').onclick = () => putuskan('Revisi');
+async function putuskan(keputusan) {
+  $('#eDok').textContent = ''; $('#bSetuju').disabled = $('#bRevisi').disabled = true;
   try {
-    if (String(pt.Logo || '').indexOf('data:image') === 0) return '<img src="' + pt.Logo + '" style="height:38px">';  // logo langsung di sel (data URI)
-    if (pt.Logo) { const bl = DriveApp.getFileById(String(pt.Logo)).getBlob();
-      return '<img src="data:' + bl.getContentType() + ';base64,' + Utilities.base64Encode(bl.getBytes()) + '" style="height:38px">'; }
-  } catch (e) {}
-  return '<b>' + eh(pt.Nama) + '</b>';
+    const st = await api('permits.decide', {permitId, keputusan, catatan:$('#dCatatan').value});
+    $('#dCatatan').value = ''; alert('Status izin sekarang: ' + st); tampil('Izin');
+  } catch (err) { $('#eDok').textContent = err.message; }
+  $('#bSetuju').disabled = $('#bRevisi').disabled = false;
 }
-/* Tata letak PDF mengikuti Form F-DP-TL-HSE-28-01 (2 halaman, ukuran Letter). Kotak centang memakai <div> berborder agar tidak bergantung pada font. */
-const LAMPIRAN_PDF = true;  // false = hanya 2 halaman form, tanpa halaman lampiran (riwayat, checklist penyelesaian, inspeksi)
-const E_ = '&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;';
-const PF = {
-  C: [['Isolasi energi', 'Isolasi energi/<br><i>Energy isolation</i>'], ['Mengemudi dan off-road', 'Mengemudi dan off-road/<br><i>Driving and off-road vehicles</i>'], ['Ruang terbatas', 'Ruang terbatas/<br>Confined spaces'], ['Bekerja di dekat perairan', 'Bekerja di dekat perairan / <i>Working near water</i>'],
-    ['Listrik', 'Listrik/<br><i>Electrical</i>'], ['Bekerja di ketinggian', 'Bekerja di ketinggian/<br><i>Working from height</i>'], ['Penanganan material', 'Penanganan material/<br>Material handling'], ['Suhu ekstrem', 'Suhu ekstrem/<br>Tempretature extremes'],
-    ['Pengerjaan tanah', 'Pengerjaan tanah/<br><i>Ground disturbance</i>'], ['Pengangkatan', 'Pengangkatan/<br><i>Lifting operations</i>'], ['Bahan berbahaya', 'Bahan berbahaya/<br><i>Hazardous materials</i>'], ['Lainnya', E_]],
-  D: ['Sengatan listrik', 'Kendaraan menabrak orang atau peralatan', 'Terjepit, terlindas atau tertabrak peralatan bergerak', 'Tertimpa/tertimbun muatan material',
-    'Arc flash', 'Kendaraan terperosok atau terbalik', 'Peralatan bergerak terbalik atau terguling', 'Tertimpa susunan material',
-    'Percikan api', 'Operator terperangkap di dalam kendaraan', 'Gas berbahaya (beracun atau mudah terbakar)', 'Menguras tenaga dan bahaya ergonomik',
-    'Asap', 'Terjatuh dari level yang berbeda', 'Kekurangan oksigen', 'Heat stress',
-    'Kebakaran peralatan atau bangunan', 'Benda yang diangkat terjatuh', 'Gelap', 'Kebisingan',
-    'Tertimbun galian (cave-in)', 'Tertimpa benda yang jatuh', 'Posisi kerja yang canggung dan tidak ergonomis', 'Tertusuk atau tersayat benda tajam',
-    'Terjatuh atau terperosok ke dalam lubang galian', 'Terpukul ayunan benda yang diangkat', 'Terpapar bahan kimia berbahaya', 'Tumpahan bahan berbahaya',
-    'Terpeleset, tersandung dan terjatuh pada level yang sama', 'Crane atau alat angkat ambruk atau terbalik', 'Terhirup bahan kimia berbahaya', 'Debu'].map(x => [x, x]).concat([[null, E_], [null, E_], [null, E_], [null, E_]]),
-  E: [['Proteksi/perlindungan jatuh', 'Proteksi/Perlindungan Jatuh'], ['Rambu-rambu, label, prosedur', 'Rambu-rambu, label, prosedur'], ['Pemadam api/kebakaran', 'Pemadam Api/Kebakaran'], ['Penampung tumpahan (secondary containment)', 'Penampung tumpahan (secondary containment)'],
-    ['Jarak aman', 'Jarak aman'], ['Pencahayaan atau penerangan', 'Pencahayaan atau penerangan'], ['Sarana jalan keluar', 'Sarana jalan keluar'], ['Ventilasi', 'Ventilasi'],
-    ['Isolasi', 'Isolasi'], ['Sertifikat kompetensi', 'Sertifikat Kompetensi'], ['Pagar/barikade', 'Pagar/Barikade'], ['Lain-lain', 'Lain-Lain&hellip;&hellip;&hellip;']],
-  F1: [['Helm keselamatan', 'Helm Keselamatan'], ['Sarung tangan kulit', 'Sarung Tangan Kulit'], ['Sepatu keselamatan', 'Sepatu Keselamatan'], ['Baju kulit', 'Baju Kulit'], ['Kacamata keselamatan', 'Kacamata Keselamatan'], ['Rompi keselamatan', 'Rompi Keselamatan']],
-  F2: [['Perlindungan muka', 'Perlindungan Muka'], ['Tali keselamatan', 'Tali Keselamatan'], ['Goggles', 'Goggles'], ['Masker', 'Masker'], ['Sarung tangan katun', 'Sarung Tangan Katun'], ['Pelindung pendengaran', 'Pelindung Pendengaran'],
-    ['Sarung tangan karet', 'Sarung Tangan Karet'], ['Lain-lain', E_ + E_]]
-};
-const BC = 'border-style:solid;border-color:#000;border-width:0 1px 1px 1px;', BT = 'border-top:1px solid #000;', T0 = 'width:100%;border-collapse:collapse;table-layout:fixed;';
-const KB = 'border:1px solid #2e5da8;width:17px;height:9px;margin:0 auto;font-size:7pt;line-height:9px;text-align:center;font-weight:bold;';
-const tglIndo = v => tglStr(v).split('-').reverse().join('-');
-const tglS = d => d ? Utilities.formatDate(new Date(d), tz(), 'dd-MM-yyyy') : '', jamS = d => d ? Utilities.formatDate(new Date(d), tz(), 'HH:mm') : '';
-const tdB = (isi, st, atr) => '<td ' + (atr || '') + ' style="' + BC + 'font-size:7.5pt;padding:1px 3px;' + (st || '') + '">' + isi + '</td>';
-const barG = (j, j2) => '<table style="' + T0 + '"><tr>' + tdB('<b>' + j + '</b>', 'background:#d9d9d9;height:15pt;vertical-align:middle;', j2 ? 'width="61%"' : '') + (j2 ? tdB('<b>' + j2 + '</b>', 'background:#d9d9d9;vertical-align:middle;') : '') + '</tr></table>';
-function gridCek(items, kol, pilih, tgi) {
-  const wb = kol === 4 ? 4.2 : 4.5, w = 100 / kol;
-  let r = '';
-  for (let i = 0; i < items.length; i += kol) {
-    r += '<tr>';
-    for (let k = 0; k < kol; k++) {
-      const it = items[i + k] || [null, ''], on = it[0] && pilih.indexOf(it[0]) >= 0;
-      r += '<td width="' + wb + '%" style="' + BC + 'height:' + tgi + 'pt;text-align:center;vertical-align:middle"><div style="' + KB + '">' + (on ? 'X' : '&nbsp;') + '</div></td>' +
-        '<td width="' + (w - wb) + '%" style="' + BC + 'padding:0 3px;vertical-align:middle;font-size:7pt">' + it[1] + '</td>';
-    }
-    r += '</tr>';
-  }
-  return '<table style="' + T0 + '">' + r + '</table>';
+function renderOps(t) {
+  const st = t.status, per = user.peran, h = [], kerja = ['Terbit','Ditangguhkan'].includes(st);
+  h.push('<h2 style="margin-top:16px">Pemantauan harian</h2>' + (t.inspeksi.length ?
+    tabel([['Waktu','Waktu',w => new Date(w).toLocaleString('id-ID')],['Oleh','Oleh'],['Catatan','Catatan'],['LEL (%)','LEL']], t.inspeksi) : '<p class="kosong">Belum ada catatan inspeksi.</p>'));
+  if (kerja && ['PENGAWAS','HSE'].includes(per)) h.push('<label for="iCat">Catatan inspeksi</label><textarea id="iCat" rows="2"></textarea><label for="iLel">Uji gas LEL (%), bila ada</label><input id="iLel" inputmode="decimal"><p></p><button type="button" data-act="inspeksi">Simpan catatan</button>');
+  if (st === 'Terbit' && per === 'PENGAWAS') h.push('<h2 style="margin-top:16px">Penyelesaian pekerjaan</h2>' + ref.selesai.map((s, i) => '<label class="cb"><input type="checkbox" data-s="' + esc(s) + '"> ' + esc(s) + '</label>').join('') + '<p></p><button type="button" data-act="selesai">Ajukan penyelesaian</button>');
+  if (kerja && ['HSE','KTT'].includes(per)) h.push('<h2 style="margin-top:16px">Penangguhan atau pembatalan (poin I)</h2><label for="cJenis">Tindakan</label><select id="cJenis">' +
+    (st === 'Terbit' ? '<option value="Tangguhkan">Tangguhkan sementara</option>' : '<option value="Lanjutkan">Lanjutkan pekerjaan</option>') + '<option value="Batalkan">Batalkan izin</option></select>' +
+    '<label for="cAlasan">Alasan</label><select id="cAlasan">' + ref.alasan.map(a => '<option>' + esc(a) + '</option>').join('') + '</select><label for="cCat">Catatan</label><textarea id="cCat" rows="2"></textarea><p></p><button type="button" data-act="batal">Simpan tindakan</button>' +
+    (per === 'HSE' ? '<p class="sub">Tindakan HSE tercatat sebagai mewakili KTT.</p>' : ''));
+  $('#dOps').innerHTML = h.join('');
 }
-function htmlIzin(p) {
-  const pt = baris('Perusahaan').find(x => sama(x.ID, p.Perusahaan_ID)) || {}, kt = baris('Kontraktor').find(x => sama(x.ID, p.Kontraktor_ID));
-  const cek = {}; baris('PermitChecklist').filter(c => sama(c.Permit_ID, p.ID)).forEach(c => (cek[c.Bagian] = cek[c.Bagian] || []).push(c.Item));
-  const log = baris('Approvals').filter(a => sama(a.Permit_ID, p.ID)), pb = baris('Cancellations').filter(c => sama(c.Permit_ID, p.ID));
-  const ap = t => log.filter(a => a.Tahap === t && ['Disetujui', 'Diajukan'].indexOf(a.Keputusan) >= 0).pop();
-  const jns = (JENIS.find(j => j[0] === p.JenisIzin) || [])[1] || p.JenisIzin;
-  const koord = (p.Lat !== '' && p.Lng !== '') ? ' (' + p.Lat + ', ' + p.Lng + ')' : '';
-  const elek = (a, t) => a ? '<i style="font-size:6.5pt">' + (t || 'Disetujui elektronik') + '</i>' : '';
-  const kol6 = ['24.7%', '24.3%', '11.7%', '11.3%', '13.5%', '14.5%'];
-  const tabel6 = (judul, baris6, tinggiHdr) => '<table style="' + T0 + '"><tr>' + judul.map((j, i) => tdB('<b>' + j + '</b>', 'text-align:center;vertical-align:middle;height:' + tinggiHdr + 'pt;', 'width="' + kol6[i] + '"')).join('') + '</tr>' + baris6 + '</table>';
-  const baris6 = (lbl, a, inst, h, t) => '<tr>' + tdB(lbl, 'text-align:center;vertical-align:middle;height:' + h + 'pt;') + tdB(a ? eh(a.Oleh) : '') + tdB(eh(inst), 'text-align:center;') + tdB(elek(a, t), 'text-align:center;') + tdB(a ? tglS(a.Waktu) : '', 'text-align:center;') + tdB(a ? jamS(a.Waktu) : '', 'text-align:center;') + '</tr>';
-  const sub = ap('Pengajuan oleh Pengawas') || { Oleh: p.Pemohon, Waktu: p.Dibuat };
-  const stop = pb.filter(c => c.Jenis !== 'Lanjutkan'), lanjut = pb.filter(c => c.Jenis === 'Lanjutkan'), nb = Math.max(2, stop.length, lanjut.length);
-  const sisiPb = (arr, i) => { const c = arr[i]; return c ? tdB(tglS(c.Waktu), 'text-align:center;') + tdB(jamS(c.Waktu), 'text-align:center;') + tdB(eh(c.Oleh) + (c.MewakiliKTT === 'Ya' ? '<br><i>mewakili KTT</i>' : ''), 'text-align:center;') + tdB('<i style="font-size:6.5pt">elektronik</i>', 'text-align:center;')
-    : tdB('') + tdB('') + tdB('') + tdB(''); };
-  let rowsPb = ''; for (let i = 0; i < nb; i++) rowsPb += '<tr style="height:26pt">' + sisiPb(stop, i) + sisiPb(lanjut, i) + '</tr>';
-  const s = p.Status, cb = (on, txt) => '<tr><td width="12%"></td><td width="4%" style="vertical-align:middle"><div style="' + KB + '">' + (on ? 'X' : '&nbsp;') + '</div></td><td style="font-size:7.5pt;padding:2px 0">' + txt + '</td></tr>';
-  const p1 = '<html><head><meta charset="utf-8"></head><body style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:7.5pt">' +
-    // Kop
-    '<table style="' + T0 + '"><tr>' + tdB(logoHtml(pt), BT + 'text-align:center;vertical-align:middle;', 'width="25%" rowspan="3"') +
-      tdB('<div style="height:22pt;line-height:22pt;font-size:12pt;font-weight:bold;text-align:center;border-bottom:1px solid #000">' + eh(pt.Nama) + '</div><div style="height:22pt;line-height:22pt;font-size:12pt;font-weight:bold;text-align:center">IZIN KERJA</div>', BT + 'padding:0;', 'width="45%" rowspan="3"') +
-      tdB('No. Dokumen', BT + 'height:15pt;font-size:6.5pt;', 'width="12%"') + tdB(': F-DP-TL-HSE-28-01', BT + 'font-size:6.5pt;') + '</tr>' +
-      '<tr>' + tdB('Tanggal Terbit', 'height:15pt;font-size:6.5pt;') + tdB(':', 'font-size:6.5pt;') + '</tr><tr>' + tdB('Revisi', 'height:15pt;font-size:6.5pt;') + tdB(': 0', 'font-size:6.5pt;') + '</tr></table>' +
-    '<table style="' + T0 + '"><tr>' + tdB('Tanggal Berlaku: ' + tglIndo(p.TglMulai) + ' s.d. ' + tglIndo(p.TglSelesai) + ' (' + eh(p.Shift) + ')', 'background:#bdd7ee;height:16pt;vertical-align:middle;font-size:8pt;') + '</tr></table>' +
-    // A
-    '<table style="' + T0 + '"><tr>' + tdB('<b>A. Aplikasi</b>', 'background:#d9d9d9;height:15pt;vertical-align:middle;', 'width="62.4%"') + tdB('Permit No: <b>' + eh(p.NoIzin) + '</b>', 'vertical-align:middle;font-size:8pt;') + '</tr></table>' +
-    '<table style="' + T0 + '"><tr>' + tdB('<table style="width:100%"><tr><td width="62%" style="height:62pt;vertical-align:middle;font-size:8pt">Jenis Pekerjaan : <b>' + eh(jns) + '</b></td><td style="vertical-align:bottom;padding-left:26%;font-size:8pt">Sebutkan:</td></tr></table>') + '</tr></table>' +
-    '<table style="' + T0 + '"><tr>' + tdB('Nama Project &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ' + eh(p.Project), 'height:24pt;font-size:8pt;', 'width="35%"') + tdB('Total Pekerja yang terlibat &nbsp;: ' + eh(p.JumlahPekerja), 'font-size:8pt;', 'width="33%"') +
-      tdB('<b>Pemohon</b><br>Nama: ' + eh(p.Pemohon) + '<br>Tanda Tangan: <i style="font-size:6.5pt">diajukan elektronik</i>', 'font-size:8pt;vertical-align:top;', 'rowspan="2"') + '</tr><tr>' +
-      tdB('Lokasi Kerja &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ' + eh(p.Lokasi) + eh(koord), 'height:24pt;font-size:8pt;', 'colspan="2"') + '</tr></table>' +
-    // B
-    barG('B. DESKRIPSI KERJA', 'Jenis Peralatan yang Digunakan') +
-    '<table style="' + T0 + '"><tr>' + tdB(eh(p.Deskripsi), 'height:50pt;vertical-align:top;font-size:8pt;', 'width="61%"') + tdB(eh(p.Peralatan), 'vertical-align:top;font-size:8pt;') + '</tr></table>' +
-    barG('C. KEGIATAN YANG TERKAIT (Diisi Dengan Tanda Centang)') + gridCek(PF.C, 4, cek.C || [], 22) +
-    barG('D. BAHAYA YANG MUNGKIN TERJADI (Diisi Dengan Tanda Centang)') + gridCek(PF.D, 4, cek.D || [], 22) +
-    barG('E. TINDAKAN PENCEGAHAN YANG DILAKUKAN SEBELUM DAN SEMASA KERJA (Diisi Dengan Tanda Centang)') + gridCek(PF.E, 2, cek.E || [], 13) +
-    '<table style="' + T0 + '"><tr>' + tdB('Tindakan Keselamatan Lain yang Diperlukan:&hellip;&hellip;&hellip;&hellip;.', 'height:62pt;vertical-align:top;font-size:8pt;') + '</tr></table>' +
-    barG('F. ALAT PELINDUNG DIRI (Diisi Dengan Tanda Centang)') + gridCek(PF.F1, 2, cek.F || [], 13);
-  const p2 = '<div style="page-break-before:always;border-top:1px solid #000"></div>' + gridCek(PF.F2, 2, cek.F || [], 13) +
-    barG('G. PENGELUARAN SURAT IZIN') + '<table style="' + T0 + '"><tr>' + tdB('Izin diberikan untuk kerja dijalankan yang tertera diatas selama', 'height:14pt;vertical-align:middle;') + '</tr></table>' +
-    '<table style="' + T0 + '"><tr>' + tdB('Dari &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: Tgl <b>' + tglIndo(p.TglMulai) + '</b> Jam <b>' + eh(p.Shift) + '</b><br>Sampai Dengan &nbsp;: Tgl <b>' + tglIndo(p.TglSelesai) + '</b> Jam <b>' + eh(p.Shift) + '</b>', 'vertical-align:middle;height:34pt;', 'width="50%" rowspan="2"') +
-      tdB('Pemberi Izin', 'vertical-align:middle;height:17pt;', 'width="22%"') + tdB(ap('Persetujuan KTT') ? eh(ap('Persetujuan KTT').Oleh) + '<br>' + elek(1) : '', 'font-size:6.5pt;') + '</tr><tr>' +
-      tdB('Pengawas Pekerjaan', 'vertical-align:middle;height:17pt;') + tdB(eh(p.Pemohon), '') + '</tr></table>' +
-    '<table style="' + T0 + '"><tr>' + tdB('&nbsp;', 'height:9pt;') + '</tr></table>' +
-    barG('H. PERSETUJUAN PENGGANTIAN PELAKSANA PEKERJAAN (Diisi Oleh Pelaksana Pekerjaan/Kontraktor)') +
-    '<table style="' + T0 + '"><tr>' + tdB('Saya menyatakan bahwa Saya telah membaca &amp; memahami Keselamatan dan Kesehatan Kerja &amp; pekerjaan ini akan dilaksanakan sesuai dengan segala persyaratan yang ada', 'height:22pt;vertical-align:middle;') + '</tr></table>' +
-    tabel6(['Penangung Jawab Izin Kerja', 'Nama', 'Sub Sistem/ Instansi', 'Tandatangan', 'Tanggal', 'Jam'],
-      baris6('Pelaksana Pekerjaan', sub, kt ? kt.Nama : 'Internal', 31, 'Diajukan elektronik') + baris6('Reviewer (Dept HSE)', ap('Verifikasi HSE'), 'Dept HSE', 31) + baris6('Kepala Teknik Tambang', ap('Persetujuan KTT'), 'KTT', 31) + baris6('', null, '', 31), 27) +
-    barG('I. PEMBATALAN') +
-    '<table style="' + T0 + '"><tr>' + tdB('Saya (Pemberi Izin) menyatakan bahwa pekerjaan &nbsp;yang tercantum pada izin kerja ini telah saya hentikan untuk sementara dan saya telah memberitahukan pemberhentian ini kepada Pengawas Pekerja<br><br>Alasan: ' + eh(stop.length ? stop[stop.length - 1].Alasan : ''), 'height:70pt;vertical-align:top;', 'width="50%"') +
-      tdB('Saya menyatakan bahwa pekerjaan yang tercantum pada izin kerja yang telah diberhentikan untuk sementara ini, bisa dimulai kembali setelah saya memeriksa kondisi sekitarnya dan telah melaksanakan pencegahan-pencegahan yang diminta', 'vertical-align:top;') + '</tr></table>' +
-    '<table style="' + T0 + '"><tr>' + ['Tanggal', 'Waktu', 'Nama', 'Tanda Tangan', 'Tanggal', 'Waktu', 'Nama', 'Tanda Tangan'].map(h => tdB('<b>' + h + '</b>', 'text-align:center;height:19pt;vertical-align:middle;', 'width="12.5%"')).join('') + '</tr>' + rowsPb + '</table>' +
-    '<table style="' + T0 + '"><tr>' + tdB('<b>Penyelesaian Izin Kerja</b>', 'height:20pt;vertical-align:middle;') + '</tr></table>' +
-    '<table style="' + T0 + '"><tr><td style="' + BC + '"><table style="width:100%">' +
-      cb(s === 'Ditutup', 'Selesai &amp; diperiksa, tindakan pencegahan khusus (isolasi,&hellip;) telah diambil kembali, lokasi kerja ditinggalkan dalam keadaan aman dan bahwa operasional dapat kembali normal') +
-      cb(false, 'Belum selesai dan akan dilanjutkan dengan izin kerja no&hellip;') + cb(s === 'Dibatalkan', 'Tidak terselesaikan dan secara tegas dihentikan') +
-      cb(s === 'Ditangguhkan', 'Beberapa langkah harus diambil sebelum operasional dapat berlagsung kembali') + '</table></td></tr></table>' +
-    tabel6(['Penangung Jawab Izin Kerja', 'Nama', 'Dept.', 'Tandatangan', 'Tanggal', 'Jam'], baris6('Pemberi Izin', ap('Penutupan KTT'), 'KTT', 36), 24) +
-    '<div style="font-size:7pt;line-height:1.5;margin-top:10pt;padding-left:3pt">Note:<br>Pengisian "Alasan" untuk poin H. Pembatalan:<br>a. Keadaan darurat,<br>b. Untuk alasan keselamatan operasional perkeretaapian,<br>c. Pekerjaan yang dilakukan hanya dalam satu shift,<br>d. Pekerjaan ditangguhkan atau ditunda selama sembilan puluh (90) menit atau lebih</div>';
-  let p3 = '';
-  const ins = baris('Inspections').filter(i => sama(i.Permit_ID, p.ID));
-  if (LAMPIRAN_PDF && (log.length || ins.length)) {
-    const T = '<td style="border:1px solid #000;padding:2px 3px;font-size:7pt;vertical-align:top">';
-    p3 = '<div style="page-break-before:always"></div><div style="font-size:10pt;font-weight:bold;margin-bottom:4pt">LAMPIRAN - Permit No: ' + eh(p.NoIzin) + '</div>' +
-      ((cek.S || []).length ? '<div style="font-size:8pt;font-weight:bold;margin:6pt 0 2pt">Checklist penyelesaian oleh Pengawas</div>' + (cek.S.filter((x, i) => cek.S.indexOf(x) === i).map(x => '<div style="font-size:7.5pt">[X] ' + eh(x) + '</div>').join('')) : '') +
-      (log.length ? '<div style="font-size:8pt;font-weight:bold;margin:8pt 0 2pt">Riwayat persetujuan</div><table style="width:100%;border-collapse:collapse">' + log.map(a => '<tr>' + T + waktuStr(a.Waktu) + '</td>' + T + eh(a.Tahap) + '</td>' + T + eh(a.Oleh) + '</td>' + T + eh(a.Keputusan) + '</td>' + T + eh(a.Catatan) + '</td></tr>').join('') + '</table>' : '') +
-      (ins.length ? '<div style="font-size:8pt;font-weight:bold;margin:8pt 0 2pt">Catatan inspeksi harian</div><table style="width:100%;border-collapse:collapse">' + ins.map(i => '<tr>' + T + waktuStr(i.Waktu) + '</td>' + T + eh(i.Oleh) + '</td>' + T + eh(i.Catatan) + '</td>' + T + 'LEL ' + eh(i.LEL) + '</td></tr>').join('') + '</table>' : '');
-  }
-  return p1 + p2 + p3 + '<p style="font-size:6pt;color:#555">Status: ' + eh(p.Status) + '. Dokumen dihasilkan sistem pada ' + waktuStr(new Date()) + '.</p></body></html>';
-}
-
-/* ---------- Tahap 4: pelaksanaan, penyelesaian, penutupan, pembatalan ---------- */
-// Terbit -> (Pengawas) Penyelesaian HSE -> (HSE) Penyelesaian KTT -> (KTT) Ditutup. Pengembalian pada tahap ini kembali ke Terbit.
-const ALUR = {
-  'Verifikasi HSE': { ok: 'Terverifikasi HSE', no: 'Revisi', cek: true },
-  'Persetujuan KTT': { ok: 'Terbit', no: 'Revisi', cek: true },
-  'Pemeriksaan Penyelesaian HSE': { ok: 'Penyelesaian KTT', no: 'Terbit' },
-  'Penutupan KTT': { ok: 'Ditutup', no: 'Terbit' }
-};
-// Checklist Penyelesaian Izin Kerja (SOP 5.8); butir terakhir tidak wajib karena hanya berlaku bila sistem kebakaran diisolasi
-const SELESAI = ['Pekerjaan selesai, area kerja bersih dan aman', 'Seluruh pekerja telah menandatangani/menyatakan selesai',
-  'Label bahaya, kunci, dan garis pembatas area kerja/isolasi telah dilepas', 'Tindakan pencegahan khusus (isolasi dan lain-lain) telah dikembalikan',
-  'Area, peralatan, atau alat telah dikembalikan ke operasi normal', 'Sistem kebakaran yang diisolasi telah diaktifkan dan diuji (jika ada)'];
-const ALASAN = ['Keadaan darurat', 'Pekerjaan hanya dalam satu shift', 'Pekerjaan ditangguhkan atau ditunda 90 menit atau lebih', 'Tidak sesuai prosedur atau JSA', 'Lainnya'];
-const hariIni = () => Utilities.formatDate(new Date(), tz(), 'yyyy-MM-dd');
-const geser = n => Utilities.formatDate(new Date(Date.now() + n * 864e5), tz(), 'yyyy-MM-dd');
-function statusEfektif(p) {
-  const lewat = ['Terbit', 'Ditangguhkan'].indexOf(p.Status) >= 0 && tglStr(p.TglSelesai) < hariIni();
-  return lewat ? p.Status + ' (melewati masa berlaku)' : p.Status;
-}
-function catatRiwayat(p, tahap, oleh, keputusan, catatan) {
-  tambah('Approvals', { ID: Utilities.getUuid(), Permit_ID: p.ID, Tahap: tahap, Oleh: oleh, Keputusan: keputusan, Catatan: catatan || '', Waktu: new Date() });
-}
-
-/* ---------- Tahap 3: approval HSE -> KTT ---------- */
-// Diajukan -> (HSE) Terverifikasi HSE -> (KTT) Terbit. Keduanya dapat mengembalikan izin ke status Revisi.
-function tahapUntuk(u, p) {
-  if (!sama(u.Perusahaan_ID, p.Perusahaan_ID)) return '';
-  if (u.Peran === 'HSE' && p.Status === 'Diajukan') return 'Verifikasi HSE';
-  if (u.Peran === 'KTT' && p.Status === 'Terverifikasi HSE') return 'Persetujuan KTT';
-  if (u.Peran === 'HSE' && p.Status === 'Penyelesaian HSE') return 'Pemeriksaan Penyelesaian HSE';
-  if (u.Peran === 'KTT' && p.Status === 'Penyelesaian KTT') return 'Penutupan KTT';
-  return '';
-}
-
-/* ---------- Tahap 5: validasi pengajuan bersama (buat dan ubah isian) ---------- */
-function validasiPengajuan(u, b) {
-    const pt = u.Kontraktor_ID ? b.perusahaan : u.Perusahaan_ID;
-    if (!baris('Perusahaan').some(x => sama(x.ID, pt) && aktif(x))) throw new Error('Perusahaan tujuan tidak valid');
-    const mul = String(b.tglMulai || ''), sel = String(b.tglSelesai || '');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(mul) || !/^\d{4}-\d{2}-\d{2}$/.test(sel)) throw new Error('Tanggal mulai dan selesai wajib diisi');
-    if (mul < Utilities.formatDate(new Date(), tz(), 'yyyy-MM-dd')) throw new Error('Tanggal mulai tidak boleh sebelum hari ini');
-    const hari = (Date.parse(sel) - Date.parse(mul)) / 864e5;
-    if (hari < 0) throw new Error('Tanggal selesai tidak boleh sebelum tanggal mulai');
-    if (hari > 6) throw new Error('Masa berlaku izin maksimal 7 hari');
-    if (!JENIS.some(j => j[0] === b.jenis)) throw new Error('Jenis izin tidak valid');
-    ['project', 'lokasi', 'deskripsi', 'shift'].forEach(f => { if (!String(b[f] || '').trim()) throw new Error('Kolom ' + f + ' wajib diisi'); });
-    if (!(Number(b.jumlah) >= 1)) throw new Error('Jumlah pekerja minimal 1');
-    const cek = b.cek || {};
-    if (!(cek.C || []).length) throw new Error('Pilih minimal satu kegiatan terkait (bagian C)');
-    Object.keys(CEK).forEach(k => (cek[k] || []).forEach(i => { if (CEK[k].indexOf(i) < 0) throw new Error('Item checklist tidak dikenal'); }));
-    if ((b.jenis === 'RUANG_TERBATAS' || cek.C.indexOf('Ruang terbatas') >= 0) && hari > 0)
-      throw new Error('Ruang terbatas tidak boleh diperpanjang ke shift berikutnya (SOP 5.7). Ajukan satu hari per izin');
-    if (u.Kontraktor_ID) {
-      const k = baris('Kontraktor').find(x => sama(x.ID, u.Kontraktor_ID) && aktif(x));
-      if (!k || !terhubung(k, pt)) throw new Error('Kontraktor Anda belum ditunjuk untuk perusahaan ini. Hubungi HSE');
-      if (tglStr(k.IUJP_Berlaku) < sel) throw new Error('IUJP kontraktor berlaku sampai ' + tglStr(k.IUJP_Berlaku) + ', sebelum izin selesai. Hubungi HSE');
-    }
-  const lat = String(b.lat == null ? '' : b.lat).trim(), lng = String(b.lng == null ? '' : b.lng).trim();
-  if ((lat || lng) && (!lat || !lng || !isFinite(Number(lat)) || !isFinite(Number(lng)) || Math.abs(Number(lat)) > 90 || Math.abs(Number(lng)) > 180))
-    throw new Error('Koordinat tidak valid. Isi latitude dan longitude dengan angka, atau kosongkan keduanya');
-  return { pt, mul, sel, cek };
-}
-function hapusBaris(n, cocok) {
-  const s = tabel(n), v = s.getDataRange().getValues(), h = v[0];
-  for (let i = v.length - 1; i >= 1; i--) {
-    const o = {}; h.forEach((k, j) => o[k] = v[i][j]);
-    if (cocok(o)) s.deleteRow(i + 1);
-  }
-}
-
-/* ---------- Aksi API ---------- */
-const AKSI = {
-  login(b) {
-    const un = String(b.username || '').trim().toLowerCase(), cache = CacheService.getScriptCache(), k = 'gagal_' + un;
-    if (Number(cache.get(k) || 0) >= MAX_GAGAL) throw new Error('Terlalu banyak percobaan. Coba lagi dalam 15 menit');
-    const u = baris('Users').find(x => String(x.Username).toLowerCase() === un && aktif(x));
-    if (!u || hash(String(b.password || ''), u.Salt) !== u.Hash) {
-      cache.put(k, String(Number(cache.get(k) || 0) + 1), KUNCI_DETIK);
-      throw new Error('Username atau password salah');
-    }
-    cache.remove(k);
-    audit(un, 'login');
-    return { token: buatToken(u), user: AKSI.me({}, u) };
-  },
-  me(b, u) {
-    const pt = baris('Perusahaan').find(x => sama(x.ID, u.Perusahaan_ID));
-    return { nama: u.Nama, peran: u.Peran, perusahaan: u.Perusahaan_ID, perusahaanNama: pt ? pt.Nama : 'Seluruh group', kontraktor: u.Kontraktor_ID,
-      kontraktorNama: u.Kontraktor_ID ? ((baris('Kontraktor').find(x => sama(x.ID, u.Kontraktor_ID)) || {}).Nama || '') : '' };
-  },
-  ref(b, u) { return { perusahaan: baris('Perusahaan').filter(aktif).map(x => ({ ID: x.ID, Nama: x.Nama })), peran: PERAN, jenis: JENIS, cek: CEK, selesai: SELESAI, alasan: ALASAN }; },
-  'permits.list'(b, u) {
-    return baris('Permits').filter(p => bolehLihatPermit(u, p)).map(p => ({
-      ID: p.ID, NoIzin: p.NoIzin, Perusahaan_ID: p.Perusahaan_ID, JenisIzin: p.JenisIzin,
-      Lokasi: p.Lokasi, TglMulai: tglStr(p.TglMulai), TglSelesai: tglStr(p.TglSelesai), Status: p.Status, StatusTampil: statusEfektif(p) }));
-  },
-  'kontraktor.list'(b, u) {
-    return baris('Kontraktor').filter(k => lihatSemua(u) || (u.Kontraktor_ID ? sama(k.ID, u.Kontraktor_ID) : terhubung(k, u.Perusahaan_ID)))
-      .map(k => ({ ID: k.ID, Nama: k.Nama, IUJP_No: k.IUJP_No, IUJP_Berlaku: tglStr(k.IUJP_Berlaku), Perusahaan_IDs: k.Perusahaan_IDs, Aktif: aktif(k) }));
-  },
-  'kontraktor.save'(b, u) {
-    wajib(u, ['ADMIN_GROUP', 'ADMIN', 'HSE']);
-    const pts = String(b.perusahaan || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (!b.nama || !b.iujp || !b.berlaku || !pts.length) throw new Error('Nama, nomor IUJP, masa berlaku, dan perusahaan wajib diisi');
-    if (u.Peran !== 'ADMIN_GROUP' && pts.some(p => !sama(p, u.Perusahaan_ID))) throw new Error('Anda hanya dapat menunjuk kontraktor untuk perusahaan Anda');
-    tambah('Kontraktor', { ID: Utilities.getUuid(), Nama: b.nama, IUJP_No: b.iujp, IUJP_Berlaku: b.berlaku, Perusahaan_IDs: pts.join(','), Aktif: true });
-    audit(u.Username, 'kontraktor.save', b.nama);
-    return 'Kontraktor disimpan';
-  },
-  'permits.create'(b, u) {
-    wajib(u, ['PENGAWAS']);
-    const { pt, mul, sel, cek } = validasiPengajuan(u, b);
-    const lock = LockService.getScriptLock();
-    lock.waitLock(20000);
-    try {
-      const id = Utilities.getUuid();
-      tambah('Permits', { ID: id, NoIzin: '', Perusahaan_ID: pt, Kontraktor_ID: u.Kontraktor_ID, JenisIzin: b.jenis, Project: b.project, Lokasi: b.lokasi,
-        Lat: b.lat === '' || b.lat == null ? '' : Number(b.lat), Lng: b.lng === '' || b.lng == null ? '' : Number(b.lng), JumlahPekerja: Number(b.jumlah), Deskripsi: b.deskripsi, Peralatan: b.peralatan, TglMulai: "'" + mul, TglSelesai: "'" + sel,
-        Shift: b.shift, Status: 'Draft', Pemohon: u.Nama, Dibuat: new Date() });
-      Object.keys(CEK).forEach(k => (cek[k] || []).forEach(i => tambah('PermitChecklist', { Permit_ID: id, Bagian: k, Item: i, Nilai: 'Ya' })));
-      audit(u.Username, 'permits.create', id);
-      return id;
-    } finally { lock.releaseLock(); }
-  },
-  'dokumen.list'(b, u) {
-    const p = ambilPermit(u, b.permitId), ada = dokAktif(p.ID);
-    return { status: p.Status, noIzin: p.NoIzin,
-      syarat: syarat(p).map(s => Object.assign(s, { ada: ada.some(d => d.Jenis === s.kode) })),
-      dok: ada.map(d => ({ ID: d.ID, Jenis: d.Jenis, Nama: d.Catatan, Waktu: d.Waktu })) };
-  },
-  'dokumen.upload'(b, u) {
-    wajib(u, ['PENGAWAS']);
-    const p = ambilPermit(u, b.permitId);
-    if (['Draft', 'Revisi'].indexOf(p.Status) < 0) throw new Error('Dokumen hanya bisa diubah saat izin berstatus Draft atau Revisi');
-    if (!DOK.some(d => d[0] === b.jenis)) throw new Error('Jenis dokumen tidak valid');
-    if (TIPE.indexOf(b.mime) < 0) throw new Error('Format file harus PDF, JPG, atau PNG');
-    const bytes = Utilities.base64Decode(String(b.data || ''));
-    if (!bytes.length || bytes.length > MAKS_BYTE) throw new Error('File kosong atau melebihi 5 MB');
-    const nama = String(b.nama || 'dokumen').replace(/[^\w.\- ]/g, '_').slice(0, 80);
-    const f = folderIzin(p).createFile(Utilities.newBlob(bytes, b.mime, b.jenis + '_' + nama));
-    dokAktif(p.ID).filter(d => d.Jenis === b.jenis).forEach(d => ubahBaris('Documents', d.ID, { Status: 'Diganti' }));
-    tambah('Documents', { ID: Utilities.getUuid(), Permit_ID: p.ID, Jenis: b.jenis, Link: f.getId(), Status: 'Terunggah', Catatan: nama, Diunggah_Oleh: u.Username, Waktu: new Date() });
-    audit(u.Username, 'dokumen.upload', p.ID + ' / ' + b.jenis);
-    return 'Dokumen tersimpan';
-  },
-  'dokumen.ambil'(b, u) {
-    const d = baris('Documents').find(x => sama(x.ID, b.id) && x.Status === 'Terunggah');
-    if (!d) throw new Error('Dokumen tidak ditemukan');
-    ambilPermit(u, d.Permit_ID);
-    const f = DriveApp.getFileById(d.Link);
-    return { nama: d.Catatan, mime: f.getMimeType(), data: Utilities.base64Encode(f.getBlob().getBytes()) };
-  },
-  'permits.submit'(b, u) {
-    wajib(u, ['PENGAWAS']);
-    const p = ambilPermit(u, b.permitId);
-    if (['Draft', 'Revisi'].indexOf(p.Status) < 0) throw new Error('Izin ini sudah dikirim');
-    const ada = dokAktif(p.ID), kurang = syarat(p).filter(s => s.wajib && !ada.some(d => d.Jenis === s.kode)).map(s => s.label);
-    if (kurang.length) throw new Error('Dokumen wajib belum lengkap: ' + kurang.join('; '));
-    const lock = LockService.getScriptLock();
-    lock.waitLock(20000);
-    try {
-      const no = p.NoIzin || nomorIzin(p.Perusahaan_ID);  // Nomor diberikan saat izin dikirim ke HSE
-      ubahBaris('Permits', p.ID, { NoIzin: no, Status: 'Diajukan' });
-      catatRiwayat(p, 'Pengajuan oleh Pengawas', u.Nama + ' (' + u.Peran + ')', 'Diajukan', '');
-      audit(u.Username, 'permits.submit', no);
-      return no;
-    } finally { lock.releaseLock(); }
-  },
-  'kontraktor.update'(b, u) {
-    wajib(u, ['ADMIN_GROUP', 'ADMIN', 'HSE']);
-    const k = baris('Kontraktor').find(x => sama(x.ID, b.id));
-    if (!k || (u.Peran !== 'ADMIN_GROUP' && !terhubung(k, u.Perusahaan_ID))) throw new Error('Kontraktor tidak ditemukan');
-    if (!b.nama || !b.iujp || !/^\d{4}-\d{2}-\d{2}$/.test(String(b.berlaku))) throw new Error('Nama, nomor IUJP, dan masa berlaku wajib diisi');
-    const o = { Nama: b.nama, IUJP_No: b.iujp, IUJP_Berlaku: b.berlaku, Aktif: b.aktif === true };
-    if (u.Peran === 'ADMIN_GROUP') {  // Hanya Admin Group yang mengubah daftar perusahaan yang ditunjuk
-      const pts = String(b.perusahaan || '').split(',').map(s => s.trim()).filter(Boolean);
-      if (!pts.length) throw new Error('Pilih minimal satu perusahaan');
-      o.Perusahaan_IDs = pts.join(',');
-    }
-    ubahBaris('Kontraktor', k.ID, o);
-    audit(u.Username, 'kontraktor.update', k.Nama + ' / IUJP s.d. ' + b.berlaku);
-    return 'Kontraktor diperbarui';
-  },
-  'users.update'(b, u) {
-    wajib(u, ['ADMIN_GROUP', 'ADMIN']);
-    const x = baris('Users').find(r => String(r.Username).toLowerCase() === String(b.username).toLowerCase());
-    const bawah = ['HSE', 'KTT', 'PENGAWAS'];
-    if (!x || (u.Peran === 'ADMIN' && (!sama(x.Perusahaan_ID, u.Perusahaan_ID) || bawah.indexOf(x.Peran) < 0))) throw new Error('Pengguna tidak ditemukan atau di luar wewenang Anda');
-    if (PERAN.indexOf(b.peran) < 0 || (u.Peran === 'ADMIN' && bawah.indexOf(b.peran) < 0)) throw new Error('Peran tidak valid');
-    if (!b.nama) throw new Error('Nama wajib diisi');
-    if (sama(x.ID, u.ID) && (b.aktif !== true || b.peran !== u.Peran)) throw new Error('Anda tidak dapat menonaktifkan atau mengubah peran akun sendiri');
-    const grup = b.peran === 'ADMIN_GROUP' || b.peran === 'GROUP_VIEWER';
-    const pt = u.Peran === 'ADMIN' ? x.Perusahaan_ID : (grup ? '' : b.perusahaan);
-    if (!grup && !baris('Perusahaan').some(r => sama(r.ID, pt) && aktif(r))) throw new Error('Perusahaan tidak valid');
-    if (b.kontraktor && !baris('Kontraktor').some(k => sama(k.ID, b.kontraktor) && terhubung(k, pt))) throw new Error('Kontraktor belum ditunjuk untuk perusahaan ini');
-    const o = { Nama: b.nama, Peran: b.peran, Perusahaan_ID: pt, Kontraktor_ID: b.kontraktor || '', Aktif: b.aktif === true };
-    if (b.password) {
-      if (String(b.password).length < 8) throw new Error('Password minimal 8 karakter');
-      o.Salt = Utilities.getUuid(); o.Hash = hash(b.password, o.Salt);
-      CacheService.getScriptCache().remove('gagal_' + String(x.Username).toLowerCase());  // buka kunci login bila terkunci
-    }
-    ubahBaris('Users', x.ID, o);
-    audit(u.Username, 'users.update', x.Username + (b.password ? ' (password diganti)' : ''));
-    return 'Pengguna diperbarui';
-  },
-  'permits.detail'(b, u) {
-    const p = ambilPermit(u, b.permitId), cek = {};
-    baris('PermitChecklist').filter(c => sama(c.Permit_ID, p.ID)).forEach(c => (cek[c.Bagian] = cek[c.Bagian] || []).push(c.Item));
-    const k = baris('Kontraktor').find(x => sama(x.ID, p.Kontraktor_ID)), pt = baris('Perusahaan').find(x => sama(x.ID, p.Perusahaan_ID));
-    return { tahap: tahapUntuk(u, p), cek, status: p.Status, tampil: statusEfektif(p),
-      isi: { jenis: p.JenisIzin, project: p.Project, lokasi: p.Lokasi, lat: p.Lat, lng: p.Lng, jumlah: p.JumlahPekerja, tglMulai: tglStr(p.TglMulai),
-        tglSelesai: tglStr(p.TglSelesai), shift: p.Shift, deskripsi: p.Deskripsi, peralatan: p.Peralatan },
-      inspeksi: baris('Inspections').filter(i => sama(i.Permit_ID, p.ID)).map(i => ({ Waktu: i.Waktu, Oleh: i.Oleh, Catatan: i.Catatan, LEL: i.LEL })),
-      p: { Jenis: (JENIS.find(j => j[0] === p.JenisIzin) || [])[1] || p.JenisIzin, Perusahaan: pt ? pt.Nama : '', Kontraktor: k ? k.Nama : 'Internal',
-        Project: p.Project, Lokasi: p.Lokasi, Koordinat: (p.Lat !== '' && p.Lng !== '') ? p.Lat + ', ' + p.Lng : '', Pekerja: p.JumlahPekerja,
-        Periode: tglStr(p.TglMulai) + ' s.d. ' + tglStr(p.TglSelesai), Shift: p.Shift, Deskripsi: p.Deskripsi, Peralatan: p.Peralatan, Pemohon: p.Pemohon },
-      riwayat: baris('Approvals').filter(a => sama(a.Permit_ID, p.ID)).map(a => ({ Waktu: a.Waktu, Tahap: a.Tahap, Oleh: a.Oleh, Keputusan: a.Keputusan, Catatan: a.Catatan })) };
-  },
-  'permits.decide'(b, u) {
-    wajib(u, ['HSE', 'KTT']);
-    const lock = LockService.getScriptLock();
-    lock.waitLock(20000);
-    try {
-      const p = ambilPermit(u, b.permitId), tahap = tahapUntuk(u, p);
-      if (!tahap) throw new Error('Izin ini tidak sedang menunggu tindakan Anda');
-      const ok = b.keputusan === 'Setuju', cat = String(b.catatan || '').trim();
-      if (!ok && b.keputusan !== 'Revisi') throw new Error('Keputusan tidak valid');
-      if (!ok && !cat) throw new Error('Catatan revisi wajib diisi');
-      if (ok && ALUR[tahap].cek) {
-        if (tglStr(p.TglSelesai) < Utilities.formatDate(new Date(), tz(), 'yyyy-MM-dd')) throw new Error('Masa berlaku izin sudah lewat. Kembalikan untuk revisi');
-        const k = p.Kontraktor_ID && baris('Kontraktor').find(x => sama(x.ID, p.Kontraktor_ID));
-        if (p.Kontraktor_ID && (!k || !aktif(k) || tglStr(k.IUJP_Berlaku) < tglStr(p.TglSelesai))) throw new Error('IUJP kontraktor tidak berlaku sampai izin selesai');
-      }
-      const status = ok ? ALUR[tahap].ok : ALUR[tahap].no;
-      tambah('Approvals', { ID: Utilities.getUuid(), Permit_ID: p.ID, Tahap: tahap, Oleh: u.Nama + ' (' + u.Peran + ')',
-        Keputusan: ok ? 'Disetujui' : 'Dikembalikan', Catatan: cat, Waktu: new Date() });
-      ubahBaris('Permits', p.ID, { Status: status });
-      audit(u.Username, 'permits.decide', p.NoIzin + ' -> ' + status);
-      return status;
-    } finally { lock.releaseLock(); }
-  },
-  'inspeksi.add'(b, u) {
-    wajib(u, ['PENGAWAS', 'HSE']);
-    const p = ambilPermit(u, b.permitId), cat = String(b.catatan || '').trim();
-    if (['Terbit', 'Ditangguhkan'].indexOf(p.Status) < 0) throw new Error('Catatan inspeksi hanya untuk izin yang sedang berlaku');
-    if (!cat) throw new Error('Catatan wajib diisi');
-    const lel = (b.lel === '' || b.lel == null) ? '' : Number(b.lel);
-    if (lel !== '' && !(lel >= 0 && lel <= 100)) throw new Error('Nilai LEL harus antara 0 dan 100');
-    tambah('Inspections', { ID: Utilities.getUuid(), Permit_ID: p.ID, Waktu: new Date(), Oleh: u.Nama + ' (' + u.Peran + ')', Catatan: cat, LEL: lel });
-    audit(u.Username, 'inspeksi.add', p.NoIzin);
-    // SOP 5.2.1: pekerjaan panas hanya boleh berlangsung bila hasil uji gas di bawah 1% LEL
-    return (lel !== '' && lel >= 1 && p.JenisIzin === 'PANAS')
-      ? 'Tersimpan. PERINGATAN: LEL ' + lel + '%, batas pekerjaan panas di bawah 1%. Hentikan pekerjaan sampai LEL turun.' : 'Catatan tersimpan';
-  },
-  'permits.selesai'(b, u) {
-    wajib(u, ['PENGAWAS']);
-    const p = ambilPermit(u, b.permitId);
-    if (p.Status !== 'Terbit') throw new Error('Penyelesaian hanya dapat diajukan untuk izin berstatus Terbit');
-    const it = (b.item || []).filter(x => SELESAI.indexOf(x) >= 0);
-    const kurang = SELESAI.slice(0, 5).filter(x => it.indexOf(x) < 0);
-    if (kurang.length) throw new Error('Checklist penyelesaian belum lengkap (' + kurang.length + ' butir belum dicentang)');
-    it.forEach(x => tambah('PermitChecklist', { Permit_ID: p.ID, Bagian: 'S', Item: x, Nilai: 'Ya' }));
-    catatRiwayat(p, 'Penyelesaian oleh Pengawas', u.Nama + ' (' + u.Peran + ')', 'Diajukan', '');
-    ubahBaris('Permits', p.ID, { Status: 'Penyelesaian HSE' });
-    audit(u.Username, 'permits.selesai', p.NoIzin);
-    return 'Penyelesaian diajukan ke HSE';
-  },
-  'permits.cancel'(b, u) {
-    wajib(u, ['HSE', 'KTT']);
-    const lock = LockService.getScriptLock();
-    lock.waitLock(20000);
-    try {
-      const p = ambilPermit(u, b.permitId), dari = { Tangguhkan: ['Terbit'], Batalkan: ['Terbit', 'Ditangguhkan'], Lanjutkan: ['Ditangguhkan'] };
-      if (!sama(u.Perusahaan_ID, p.Perusahaan_ID)) throw new Error('Izin di luar perusahaan Anda');
-      if (!dari[b.jenis] || dari[b.jenis].indexOf(p.Status) < 0) throw new Error('Tindakan ini tidak sesuai dengan status izin saat ini');
-      if (ALASAN.indexOf(b.alasan) < 0) throw new Error('Pilih alasan');
-      const cat = String(b.catatan || '').trim(), ket = b.alasan + (cat ? ': ' + cat : '');
-      if ((b.alasan === 'Lainnya' || b.jenis === 'Lanjutkan') && !cat) throw new Error('Catatan wajib diisi');
-      if (b.jenis === 'Lanjutkan' && tglStr(p.TglSelesai) < hariIni()) throw new Error('Masa berlaku izin sudah lewat. Batalkan izin atau ajukan izin baru');
-      const wakil = u.Peran === 'HSE', ke = b.jenis === 'Batalkan' ? 'Dibatalkan' : (b.jenis === 'Tangguhkan' ? 'Ditangguhkan' : 'Terbit');
-      tambah('Cancellations', { ID: Utilities.getUuid(), Permit_ID: p.ID, Jenis: b.jenis, Alasan: ket, Oleh: u.Nama, MewakiliKTT: wakil ? 'Ya' : 'Tidak', Waktu: new Date() });
-      catatRiwayat(p, 'Penangguhan / pembatalan (poin I)', u.Nama + ' (' + u.Peran + (wakil ? ', mewakili KTT' : '') + ')', b.jenis, ket);
-      ubahBaris('Permits', p.ID, { Status: ke });
-      audit(u.Username, 'permits.cancel', p.NoIzin + ' ' + b.jenis);
-      return ke;
-    } finally { lock.releaseLock(); }
-  },
-  'permits.update'(b, u) {
-    wajib(u, ['PENGAWAS']);
-    const p = ambilPermit(u, b.permitId);
-    if (['Draft', 'Revisi'].indexOf(p.Status) < 0) throw new Error('Isian hanya bisa diubah saat izin berstatus Draft atau Revisi');
-    const v = validasiPengajuan(u, Object.assign({}, b, { perusahaan: p.Perusahaan_ID }));  // perusahaan tujuan tidak berubah
-    const lock = LockService.getScriptLock();
-    lock.waitLock(20000);
-    try {
-      ubahBaris('Permits', p.ID, { JenisIzin: b.jenis, Project: b.project, Lokasi: b.lokasi, Lat: b.lat === '' || b.lat == null ? '' : Number(b.lat), Lng: b.lng === '' || b.lng == null ? '' : Number(b.lng), JumlahPekerja: Number(b.jumlah),
-        Deskripsi: b.deskripsi, Peralatan: b.peralatan, TglMulai: "'" + v.mul, TglSelesai: "'" + v.sel, Shift: b.shift });
-      hapusBaris('PermitChecklist', c => sama(c.Permit_ID, p.ID) && c.Bagian !== 'S');
-      Object.keys(CEK).forEach(k => (v.cek[k] || []).forEach(i => tambah('PermitChecklist', { Permit_ID: p.ID, Bagian: k, Item: i, Nilai: 'Ya' })));
-      catatRiwayat(p, 'Perubahan isian oleh Pengawas', u.Nama + ' (' + u.Peran + ')', 'Diperbarui', '');
-      audit(u.Username, 'permits.update', p.NoIzin || p.ID);
-      return p.ID;
-    } finally { lock.releaseLock(); }
-  },
-  'permits.pdf'(b, u) {
-    const p = ambilPermit(u, b.permitId);
-    if (STATUS_PDF.indexOf(p.Status) < 0) throw new Error('PDF izin tersedia setelah izin terbit');
-    const pdf = Utilities.newBlob(htmlIzin(p), 'text/html', 'izin.html').getAs('application/pdf');
-    audit(u.Username, 'permits.pdf', p.NoIzin);
-    return { nama: 'Izin_' + String(p.NoIzin).replace(/[^\w-]/g, '_') + '.pdf', mime: 'application/pdf', data: Utilities.base64Encode(pdf.getBytes()) };
-  },
-  'dashboard'(b, u) {
-    const now = hariIni(), pts = baris('Perusahaan'), nm = id => (pts.find(x => sama(x.ID, id)) || {}).Nama || id;
-    const lbl = j => (JENIS.find(x => x[0] === j) || [])[1] || j;
-    const dari = Number(b.hari) > 0 ? geser(-Number(b.hari)) : '';
-    const cakupan = baris('Permits').filter(p => bolehLihatPermit(u, p) && (!b.perusahaan || sama(p.Perusahaan_ID, b.perusahaan)));
-    const ps = cakupan.filter(p => !dari || tglStr(p.Dibuat) >= dari);
-    const aktifSt = ['Terbit', 'Ditangguhkan'], tunggu = ['Diajukan', 'Terverifikasi HSE', 'Penyelesaian HSE', 'Penyelesaian KTT'];
-    const hit = f => { const o = {}; ps.forEach(p => { const k = f(p); o[k] = (o[k] || 0) + 1; }); return o; };
-    const ringkas = p => ({ ID: p.ID, NoIzin: p.NoIzin, Perusahaan: nm(p.Perusahaan_ID), Jenis: lbl(p.JenisIzin), Lokasi: p.Lokasi, TglSelesai: tglStr(p.TglSelesai), Status: p.Status });
-    const jalan = ps.filter(p => aktifSt.indexOf(p.Status) >= 0), tren = {};
-    for (let i = 5; i >= 0; i--) {  // tren 6 bulan terakhir, tidak terpengaruh filter periode
-      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
-      const k = Utilities.formatDate(d, tz(), 'yyyy-MM');
-      tren[k] = cakupan.filter(p => p.Dibuat instanceof Date && Utilities.formatDate(p.Dibuat, tz(), 'yyyy-MM') === k).length;
-    }
-    const iujp = baris('Kontraktor').filter(k => aktif(k) && (lihatSemua(u) || (u.Kontraktor_ID ? sama(k.ID, u.Kontraktor_ID) : terhubung(k, u.Perusahaan_ID))) && tglStr(k.IUJP_Berlaku) <= geser(30))
-      .map(k => ({ Nama: k.Nama, IUJP_No: k.IUJP_No, Berlaku: tglStr(k.IUJP_Berlaku), Sisa: Math.round((Date.parse(tglStr(k.IUJP_Berlaku)) - Date.parse(now)) / 864e5) }));
-    return { total: ps.length, aktif: jalan.length, menunggu: ps.filter(p => tunggu.indexOf(p.Status) >= 0).length, ditutup: ps.filter(p => p.Status === 'Ditutup').length,
-      lewat: jalan.filter(p => tglStr(p.TglSelesai) < now).map(ringkas), segera: jalan.filter(p => tglStr(p.TglSelesai) >= now && tglStr(p.TglSelesai) <= geser(2)).map(ringkas),
-      titik: jalan.filter(p => p.Lat !== '' && p.Lng !== '').map(p => Object.assign(ringkas(p), { Lat: Number(p.Lat), Lng: Number(p.Lng), Kode: p.JenisIzin })),
-      status: hit(p => p.Status), jenis: hit(p => lbl(p.JenisIzin)), perusahaan: hit(p => nm(p.Perusahaan_ID)), tren, iujp };
-  },
-  'users.list'(b, u) {
-    wajib(u, ['ADMIN_GROUP', 'ADMIN']);
-    return baris('Users').filter(x => u.Peran === 'ADMIN_GROUP' || sama(x.Perusahaan_ID, u.Perusahaan_ID))
-      .map(x => ({ Username: x.Username, Nama: x.Nama, Peran: x.Peran, Perusahaan_ID: x.Perusahaan_ID, Kontraktor_ID: x.Kontraktor_ID, Aktif: aktif(x) }));
-  },
-  'users.create'(b, u) {
-    wajib(u, ['ADMIN_GROUP', 'ADMIN']);
-    if (u.Peran === 'ADMIN') {  // admin perusahaan hanya mengelola pengguna di perusahaannya
-      if (['HSE', 'KTT', 'PENGAWAS'].indexOf(b.peran) < 0) throw new Error('Peran ini hanya bisa dibuat Admin Group');
-      b.perusahaan = u.Perusahaan_ID;
-    }
-    buatUser(b);
-    audit(u.Username, 'users.create', b.username + ' / ' + b.peran);
-    return 'Pengguna dibuat';
-  }
-};
-
-function doPost(e) {
-  let r;
+$('#dOps').onclick = async e => {
+  const act = e.target.dataset.act; if (!act) return;
+  $('#eDok').textContent = ''; e.target.disabled = true;
   try {
-    const b = JSON.parse(e.postData.contents), fn = AKSI[b.aksi];
-    if (!fn) throw new Error('Aksi tidak dikenal');
-    r = { ok: true, data: b.aksi === 'login' ? fn(b) : fn(b, userDariToken(b.token)) };
-  } catch (err) { r = { ok: false, error: String(err.message || err) }; }
-  return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
+    const v = id => $('#' + id).value;
+    const msg = act === 'inspeksi' ? await api('inspeksi.add', {permitId, catatan:v('iCat'), lel:v('iLel')})
+      : act === 'selesai' ? await api('permits.selesai', {permitId, item:[...$('#dOps').querySelectorAll('input[data-s]:checked')].map(i => i.dataset.s)})
+      : await api('permits.cancel', {permitId, jenis:v('cJenis'), alasan:v('cAlasan'), catatan:v('cCat')});
+    alert(msg); await muatDok();
+  } catch (err) { $('#eDok').textContent = err.message; }
+  e.target.disabled = false;
+};
+let editAju = null, detailKini = null;
+function resetAju() {
+  editAju = null; $('#fAju').reset(); hapusTitikAju(); $('#judulAju').textContent = 'Ajukan izin kerja'; $('#bAju').textContent = 'Ajukan izin';
 }
-function doGet() {
-  return ContentService.createTextOutput(JSON.stringify({ ok: true, data: 'API Izin Kerja aktif' })).setMimeType(ContentService.MimeType.JSON);
+$('#bUbahIsi').onclick = async () => {
+  const t = detailKini, i = t.isi;
+  editAju = permitId; await muatAju(); tampil('Aju');
+  [['aJenis','jenis'],['aProj','project'],['aLok','lokasi'],['aLat','lat'],['aLng','lng'],['aJml','jumlah'],['aMul','tglMulai'],['aSel','tglSelesai'],['aShift','shift'],['aDesk','deskripsi'],['aAlat','peralatan']]
+    .forEach(f => $('#' + f[0]).value = i[f[1]] == null ? '' : i[f[1]]);
+  document.querySelectorAll('#cek input[data-b]').forEach(c => c.checked = (t.cek[c.dataset.b] || []).includes(c.value));
+  $('#wPt').classList.add('hidden'); $('#judulAju').textContent = 'Ubah isian izin kerja'; $('#bAju').textContent = 'Simpan perubahan';
+  if (i.lat !== '' && i.lng !== '') setAju(Number(i.lat), Number(i.lng), true); else hapusTitikAju();
+};
+$('#bPdf').onclick = async () => {
+  $('#eDok').textContent = 'Membuat PDF...'; $('#bPdf').disabled = true;
+  try {
+    const d = await api('permits.pdf', {permitId}), bin = atob(d.data), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([a], {type:d.mime})); l.download = d.nama; l.click();
+    $('#eDok').textContent = '';
+  } catch (err) { $('#eDok').textContent = err.message; }
+  $('#bPdf').disabled = false;
+};
+const hb = (judul, o, urut) => {
+  const k = Object.entries(o); if (!urut) k.sort((a, b) => b[1] - a[1]);
+  const m = Math.max(1, ...k.map(x => x[1]));
+  return '<div class="card"><h2>' + judul + '</h2>' + (k.length ? k.map(x => '<div class="hb"><span>' + esc(x[0]) + '</span><i style="width:' + Math.round(x[1] / m * 40) + '%"></i><b>' + x[1] + '</b></div>').join('') : '<p class="kosong">Belum ada data.</p>') + '</div>';
+};
+async function muatDash() {
+  const grup = ['ADMIN_GROUP','GROUP_VIEWER'].includes(user.peran);
+  $('#fPtW').classList.toggle('hidden', !grup);
+  if (grup && !$('#dPt').innerHTML) $('#dPt').innerHTML = '<option value="">Semua perusahaan</option>' + ref.perusahaan.map(p => '<option value="' + esc(p.ID) + '">' + esc(p.Nama) + '</option>').join('');
+  const d = await api('dashboard', {perusahaan:$('#dPt').value, hari:Number($('#dHari').value)});
+  const kpi = [['Total izin', d.total, ''], ['Sedang berlaku', d.aktif, ''], ['Menunggu tindakan', d.menunggu, ''], ['Melewati masa berlaku, belum ditutup', d.lewat.length, d.lewat.length ? 'awas' : ''],
+    ['Berakhir dalam 2 hari', d.segera.length, d.segera.length ? 'awas' : ''], ['Ditutup', d.ditutup, '']];
+  $('#dKpi').innerHTML = kpi.map(x => '<div class="kpi ' + x[2] + '"><b>' + x[1] + '</b><span>' + x[0] + '</span></div>').join('');
+  petaDashboard(d.titik || []);
+  $('#dGrafik').innerHTML = hb('Menurut status', d.status) + hb('Menurut jenis izin', d.jenis) + (grup ? hb('Menurut perusahaan', d.perusahaan) : '') + hb('Izin diajukan per bulan', d.tren, true);
+  const kol = [['No. izin','NoIzin'],['Perusahaan','Perusahaan'],['Jenis','Jenis'],['Lokasi','Lokasi'],['Berakhir','TglSelesai'],['','ID',id => '<button class="lain" data-doc="' + esc(id) + '">Buka</button>',1]];
+  const daftar = (j, rows) => rows.length ? '<div class="card" style="margin-bottom:16px"><h2>' + j + '</h2>' + tabel(kol, rows) + '</div>' : '';
+  $('#dDaftar').innerHTML = daftar('Melewati masa berlaku dan belum ditutup', d.lewat) + daftar('Berakhir dalam 2 hari', d.segera) +
+    (d.iujp.length ? '<div class="card"><h2>IUJP kontraktor berakhir dalam 30 hari atau sudah lewat</h2>' + tabel([['Kontraktor','Nama'],['No. IUJP','IUJP_No'],['Berlaku s.d.','Berlaku'],['Sisa hari','Sisa']], d.iujp) + '</div>' : '');
 }
+$('#dPt').onchange = $('#dHari').onchange = () => muatDash().catch(e => alert(e.message));
+$('#dDaftar').onclick = e => e.target.dataset.doc && bukaDok(e.target.dataset.doc);
+// ---------- Peta (Leaflet) ----------
+const ORTHO_URL = '';  // Isi dengan alamat tile ortho Engineering, mis. 'https://.../{z}/{x}/{y}.png'. Kosong = ortho belum dipasang
+const ORTHO_BOUNDS = [[-3.78435, 103.57130], [-3.71714, 103.66435]], PUSAT = [-3.75075, 103.61783];
+const ORTHO_TMS = false;  // Ubah ke true bila tile dibuat dengan skema TMS (sumbu Y terbalik) dan petanya tampak tidak cocok
+const WARNA = {PANAS:'#e4572e', RUANG_TERBATAS:'#7b2cbf', KETINGGIAN:'#1d7fd6', PENGGALIAN:'#8c5a2b', LISTRIK:'#f2c200', ISOLASI_ENERGI:'#2a9d8f', PENGANGKATAN:'#e07a00', LAINNYA:'#6c757d'};
+const UTM = (() => {  // WGS84, UTM zona 48 Selatan
+  const a = 6378137, e2 = (1 / 298.257223563) * (2 - 1 / 298.257223563), ep2 = e2 / (1 - e2), k0 = .9996, l0 = 105 * Math.PI / 180, r = x => x * Math.PI / 180;
+  const fwd = (lat, lon) => {
+    const p = r(lat), l = r(lon), N = a / Math.sqrt(1 - e2 * Math.sin(p) ** 2), T = Math.tan(p) ** 2, C = ep2 * Math.cos(p) ** 2, A = Math.cos(p) * (l - l0);
+    const M = a * ((1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256) * p - (3 * e2 / 8 + 3 * e2 ** 2 / 32 + 45 * e2 ** 3 / 1024) * Math.sin(2 * p) + (15 * e2 ** 2 / 256 + 45 * e2 ** 3 / 1024) * Math.sin(4 * p) - (35 * e2 ** 3 / 3072) * Math.sin(6 * p));
+    return [500000 + k0 * N * (A + (1 - T + C) * A ** 3 / 6 + (5 - 18 * T + T ** 2 + 72 * C - 58 * ep2) * A ** 5 / 120),
+      1e7 + k0 * (M + N * Math.tan(p) * (A ** 2 / 2 + (5 - T + 9 * C + 4 * C ** 2) * A ** 4 / 24 + (61 - 58 * T + T ** 2 + 600 * C - 330 * ep2) * A ** 6 / 720))];
+  };
+  const inv = (E, Nn) => {
+    const x = E - 5e5, M = (Nn - 1e7) / k0, mu = M / (a * (1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256)), e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+    const f1 = mu + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu) + (21 * e1 ** 2 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu) + (151 * e1 ** 3 / 96) * Math.sin(6 * mu) + (1097 * e1 ** 4 / 512) * Math.sin(8 * mu);
+    const N1 = a / Math.sqrt(1 - e2 * Math.sin(f1) ** 2), T1 = Math.tan(f1) ** 2, C1 = ep2 * Math.cos(f1) ** 2, R1 = a * (1 - e2) / (1 - e2 * Math.sin(f1) ** 2) ** 1.5, D = x / (N1 * k0);
+    const lat = f1 - (N1 * Math.tan(f1) / R1) * (D ** 2 / 2 - (5 + 3 * T1 + 10 * C1 - 4 * C1 ** 2 - 9 * ep2) * D ** 4 / 24 + (61 + 90 * T1 + 298 * C1 + 45 * T1 ** 2 - 252 * ep2 - 3 * C1 ** 2) * D ** 6 / 720);
+    const lon = l0 + (D - (1 + 2 * T1 + C1) * D ** 3 / 6 + (5 - 2 * C1 + 28 * T1 - 3 * C1 ** 2 + 8 * ep2 + 24 * T1 ** 2) * D ** 5 / 120) / Math.cos(f1);
+    return [lat * 180 / Math.PI, lon * 180 / Math.PI];
+  };
+  return {fwd, inv};
+})();
+function buatPeta(id) {
+  const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'});
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Tiles &copy; Esri'});
+  const lapis = [sat], overlay = {};
+  if (ORTHO_URL) { const o = L.tileLayer(ORTHO_URL, {tms:ORTHO_TMS, minZoom:12, maxNativeZoom:18, maxZoom:20, bounds:ORTHO_BOUNDS, attribution:'Ortho Engineering'}); lapis.push(o); overlay['Ortho Engineering'] = o; }
+  const m = L.map(id, {center:PUSAT, zoom:13, maxZoom:20, layers:lapis});
+  L.control.layers({'Satelit':sat, 'Peta jalan':osm}, overlay).addTo(m); L.control.scale({imperial:false}).addTo(m);
+  return m;
+}
+const titikGaya = w => ({radius:9, color:'#14232b', weight:2, fillColor:w || '#f5c400', fillOpacity:.95});
+const num = v => parseFloat(String(v).replace(',', '.'));
+let petaAju = null, titikAju = null, petaDok = null, titikDok = null, petaDash = null, lapisDash = null, dataTitik = [];
+
+function setAju(lat, lng, geser) {
+  if (!isFinite(lat) || !isFinite(lng)) return;
+  $('#aLat').value = lat.toFixed(6); $('#aLng').value = lng.toFixed(6);
+  const u = UTM.fwd(lat, lng); $('#aE').value = Math.round(u[0]); $('#aN').value = Math.round(u[1]);
+  if (titikAju) titikAju.setLatLng([lat, lng]); else titikAju = L.circleMarker([lat, lng], titikGaya()).addTo(petaAju);
+  if (geser) { petaAju.invalidateSize(); petaAju.setView([lat, lng], Math.max(petaAju.getZoom(), 16)); }
+}
+function hapusTitikAju() {
+  if (titikAju) { titikAju.remove(); titikAju = null; }
+  ['aLat','aLng','aE','aN'].forEach(i => $('#' + i).value = '');
+}
+function inisiAju() {
+  if (!petaAju) { petaAju = buatPeta('mapAju'); petaAju.on('click', e => setAju(e.latlng.lat, e.latlng.lng)); }
+  setTimeout(() => petaAju.invalidateSize(), 0);
+}
+const pasangan = v => { const m = String(v).match(/^\s*(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)\s*$/); return m ? [+m[1], +m[2]] : null; };
+$('#aLat').onchange = $('#aLng').onchange = () => { const p = pasangan($('#aLat').value); if (p) setAju(p[0], p[1], true); else setAju(num($('#aLat').value), num($('#aLng').value), true); };
+$('#aE').onchange = $('#aN').onchange = () => { const p = UTM.inv(num($('#aE').value), num($('#aN').value)); setAju(p[0], p[1], true); };
+$('#bHapusTitik').onclick = hapusTitikAju;
+$('#bGps').onclick = () => {
+  if (!navigator.geolocation) { $('#infoGps').textContent = 'Perangkat tidak mendukung GPS'; return; }
+  $('#infoGps').textContent = 'Mencari lokasi...';
+  navigator.geolocation.getCurrentPosition(p => { setAju(p.coords.latitude, p.coords.longitude, true); $('#infoGps').textContent = 'Akurasi sekitar ' + Math.round(p.coords.accuracy) + ' m' + (p.coords.accuracy > 100 ? '. Kurang akurat (biasanya di laptop), periksa dan geser titik dengan klik di peta.' : ''); },
+    e => { $('#infoGps').textContent = 'Lokasi tidak bisa dibaca: ' + e.message; }, {enableHighAccuracy:true, timeout:15000});
+};
+function tampilPetaDok(i) {
+  const ada = i.lat !== '' && i.lng !== '' && isFinite(Number(i.lat)) && isFinite(Number(i.lng));
+  $('#wMapDok').classList.toggle('hidden', !ada); if (!ada) return;
+  const ll = [Number(i.lat), Number(i.lng)], u = UTM.fwd(ll[0], ll[1]);
+  if (!petaDok) petaDok = buatPeta('mapDok');
+  petaDok.invalidateSize();
+  if (titikDok) titikDok.setLatLng(ll); else titikDok = L.circleMarker(ll, titikGaya()).addTo(petaDok);
+  petaDok.setView(ll, 16);
+  $('#utmDok').textContent = 'Koordinat: ' + ll[0].toFixed(6) + ', ' + ll[1].toFixed(6) + '  |  UTM 48S: E ' + Math.round(u[0]) + ', N ' + Math.round(u[1]);
+}
+function petaDashboard(titik) {
+  if (!petaDash) {
+    petaDash = buatPeta('mapDash'); lapisDash = L.layerGroup().addTo(petaDash);
+    petaDash.on('popupopen', e => { const b = e.popup.getElement().querySelector('button[data-doc]'); if (b) b.onclick = () => bukaDok(b.dataset.doc); });
+  }
+  petaDash.invalidateSize(); lapisDash.clearLayers(); dataTitik = titik;
+  titik.forEach(t => L.circleMarker([t.Lat, t.Lng], titikGaya(WARNA[t.Kode])).bindPopup('<b>' + esc(t.NoIzin) + '</b><br>' + esc(t.Jenis) + '<br>' + esc(t.Lokasi) + '<br>' + esc(t.Perusahaan) +
+    '<br>Berakhir ' + esc(t.TglSelesai) + '<br><button type="button" data-doc="' + esc(t.ID) + '">Buka</button>').addTo(lapisDash));
+  if (titik.length) petaDash.fitBounds(titik.map(t => [t.Lat, t.Lng]), {maxZoom:16, padding:[30,30]});
+  $('#legendaDash').innerHTML = ref.jenis.map(j => '<span style="margin-right:12px"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (WARNA[j[0]] || '#6c757d') + ';margin-right:4px"></i>' + esc(j[1]) + '</span>').join('');
+  $('#infoPetaDash').textContent = titik.length ? titik.length + ' izin berlaku dengan titik lokasi.' : 'Belum ada izin berlaku yang memiliki titik lokasi.';
+}
+$('#bKml').onclick = () => {
+  if (!dataTitik.length) { alert('Belum ada titik untuk diekspor'); return; }
+  const x = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const kml = '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Izin kerja berlaku</name>' +
+    dataTitik.map(t => '<Placemark><name>' + x(t.NoIzin) + '</name><description>' + x(t.Jenis + ' - ' + t.Lokasi + ' - ' + t.Perusahaan + ' - berakhir ' + t.TglSelesai) + '</description><Point><coordinates>' + t.Lng + ',' + t.Lat + ',0</coordinates></Point></Placemark>').join('') + '</Document></kml>';
+  const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([kml], {type:'application/vnd.google-earth.kml+xml'})); l.download = 'izin_kerja_berlaku.kml'; l.click();
+};
+let permitId = null;
+function bukaDok(id) { permitId = id; tampil('Dok'); }
+const baca = blob => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = () => gagal(new Error('File tidak bisa dibaca')); r.readAsDataURL(blob); });
+async function siapFile(f) {  // Foto dikecilkan di browser (maks. 1600 px) agar unggahan ringan
+  if (f.type === 'application/pdf') { if (f.size > 5e6) throw new Error('PDF melebihi 5 MB. Perkecil ukurannya dulu.'); return {mime:f.type, data: await baca(f)}; }
+  if (!/^image\/(jpeg|png)$/.test(f.type)) throw new Error('Format file harus PDF, JPG, atau PNG');
+  const bmp = await createImageBitmap(f), s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', .8));
+  return {mime:'image/jpeg', data: await baca(blob)};
+}
+async function muatDok() {
+  const [d, t] = await Promise.all([api('dokumen.list', {permitId}), api('permits.detail', {permitId})]);
+  const boleh = user.peran === 'PENGAWAS' && ['Draft','Revisi'].includes(d.status);
+  $('#dJudul').textContent = d.noIzin || 'Izin belum bernomor';
+  $('#dInfo').textContent = 'Status: ' + t.tampil + '. Format PDF, JPG, atau PNG, maksimal 5 MB per file.' + (boleh ? (d.status === 'Revisi' ? ' Perbaiki isian form dan dokumen sesuai catatan pada riwayat, lalu kirim ulang.' : ' Nomor izin diberikan saat izin dikirim ke HSE.') : '');
+  $('#dSyarat').innerHTML = '<div class="scroll"><table><thead><tr><th>Dokumen</th><th>File</th><th></th></tr></thead><tbody>' + d.syarat.map(s => {
+    const f = d.dok.find(x => x.Jenis === s.kode);
+    return '<tr><td>' + esc(s.label) + (s.wajib ? ' (wajib)' : '') + '</td><td>' + (f ? '<button class="lain" data-buka="' + esc(f.ID) + '">' + esc(f.Nama) + '</button>' : (s.wajib ? 'Belum ada' : '-')) + '</td><td>' +
+      (boleh ? '<input type="file" accept="application/pdf,image/jpeg,image/png" data-up="' + s.kode + '" aria-label="Unggah ' + esc(s.label) + '">' : '') + '</td></tr>';
+  }).join('') + '</tbody></table></div>';
+  $('#bKirim').classList.toggle('hidden', !boleh); $('#bUbahIsi').classList.toggle('hidden', !boleh); detailKini = t;
+  $('#bPdf').classList.toggle('hidden', !['Terbit','Ditangguhkan','Penyelesaian HSE','Penyelesaian KTT','Ditutup','Dibatalkan'].includes(t.status));
+  const R = t.p;
+  $('#dRingkas').innerHTML = '<div class="scroll"><table><tbody>' + [['Jenis izin',R.Jenis],['Perusahaan',R.Perusahaan],['Kontraktor',R.Kontraktor],['Pemohon',R.Pemohon],['Project',R.Project],['Lokasi',R.Lokasi],
+    ['Koordinat',R.Koordinat],['Jumlah pekerja',R.Pekerja],['Masa berlaku',R.Periode],['Shift',R.Shift],['Deskripsi kerja',R.Deskripsi],['Peralatan',R.Peralatan]]
+    .filter(r => r[1] !== '').map(r => '<tr><th>' + r[0] + '</th><td>' + esc(r[1]) + '</td></tr>').join('') + '</tbody></table></div>' +
+    [['C','Kegiatan terkait'],['D','Bahaya'],['E','Tindakan pencegahan'],['F','APD']].map(x => '<p><strong>' + x[1] + ':</strong> ' + esc((t.cek[x[0]] || []).join(', ') || '-') + '</p>').join('');
+  $('#dRiwayat').innerHTML = t.riwayat.length ? '<h2 style="margin-top:16px">Riwayat persetujuan</h2>' +
+    tabel([['Waktu','Waktu',w => new Date(w).toLocaleString('id-ID')],['Tahap','Tahap'],['Oleh','Oleh'],['Keputusan','Keputusan'],['Catatan','Catatan']], t.riwayat) : '';
+  renderOps(t); tampilPetaDok(t.isi);
+  $('#dKeputusan').classList.toggle('hidden', !t.tahap);
+  $('#dTahap').textContent = t.tahap;
+}
+$('#dSyarat').onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f || !e.target.dataset.up) return;
+  $('#eDok').textContent = 'Mengunggah...';
+  try {
+    const b = await siapFile(f);
+    await api('dokumen.upload', {permitId, jenis:e.target.dataset.up, nama:f.name, mime:b.mime, data:b.data});
+    $('#eDok').textContent = ''; await muatDok();
+  } catch (err) { $('#eDok').textContent = err.message; }
+};
+$('#dSyarat').onclick = async e => {
+  const id = e.target.dataset.buka; if (!id) return;
+  try {
+    const d = await api('dokumen.ambil', {id}), bin = atob(d.data), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    window.open(URL.createObjectURL(new Blob([a], {type:d.mime})), '_blank');
+  } catch (err) { $('#eDok').textContent = err.message; }
+};
+$('#bKirim').onclick = async () => {
+  $('#eDok').textContent = ''; $('#bKirim').disabled = true;
+  try { const no = await api('permits.submit', {permitId}); alert('Izin dikirim ke HSE. Nomor izin: ' + no); tampil('Izin'); }
+  catch (err) { $('#eDok').textContent = err.message; }
+  $('#bKirim').disabled = false;
+};
+$('#bKembali').onclick = () => tampil('Izin');
+$('#tIzin').onclick = e => e.target.dataset.doc && bukaDok(e.target.dataset.doc);
+let kon = null;
+let dataKon = [], dataUser = [], editKon = null, editUser = null;
+function resetKon() {
+  editKon = null; $('#fKon').reset(); $('#kAktif').checked = true;
+  $('#bKon').textContent = 'Simpan kontraktor'; $('#bKonBatal').classList.add('hidden');
+}
+function resetUser() {
+  editUser = null; $('#fUser').reset(); $('#uUn').readOnly = false; $('#uPw').required = true; $('#uPw').placeholder = '';
+  $('#uAktif').checked = true; $('#bUser').textContent = 'Simpan pengguna'; $('#bUserBatal').classList.add('hidden');
+}
+$('#bKonBatal').onclick = resetKon; $('#bUserBatal').onclick = resetUser;
+$('#tKon').onclick = e => {
+  const k = dataKon.find(x => x.ID === e.target.dataset.ek); if (!k) return;
+  editKon = k.ID; $('#kNama').value = k.Nama; $('#kIujp').value = k.IUJP_No; $('#kBer').value = k.IUJP_Berlaku; $('#kAktif').checked = k.Aktif;
+  const ids = String(k.Perusahaan_IDs).split(',').map(s => s.trim());
+  $('#kPt').querySelectorAll('input').forEach(i => i.checked = ids.includes(i.value));
+  $('#bKon').textContent = 'Simpan perubahan'; $('#bKonBatal').classList.remove('hidden'); $('#fKon').scrollIntoView({block:'center'});
+};
+$('#tUser').onclick = e => {
+  const x = dataUser.find(r => r.Username === e.target.dataset.eu); if (!x) return;
+  editUser = x.Username; $('#uUn').value = x.Username; $('#uUn').readOnly = true; $('#uNama').value = x.Nama;
+  $('#uPw').value = ''; $('#uPw').required = false; $('#uPw').placeholder = 'Kosongkan jika tidak diganti';
+  $('#uPeran').value = x.Peran; $('#uPt').value = x.Perusahaan_ID; $('#uKon').value = x.Kontraktor_ID || ''; $('#uAktif').checked = x.Aktif;
+  $('#bUser').textContent = 'Simpan perubahan'; $('#bUserBatal').classList.remove('hidden'); $('#fUser').scrollIntoView({block:'center'});
+};
+
+async function muatAju() {
+  inisiAju();
+  if (!$('#cek').innerHTML) {
+    const N = {C:'Kegiatan terkait',D:'Bahaya yang mungkin terjadi',E:'Tindakan pencegahan',F:'Alat pelindung diri'};
+    $('#cek').innerHTML = Object.keys(N).map(k => '<fieldset><legend>' + N[k] + '</legend><div class="grid">' +
+      ref.cek[k].map(i => '<label class="cb"><input type="checkbox" data-b="' + k + '" value="' + esc(i) + '"> ' + esc(i) + '</label>').join('') + '</div></fieldset>').join('');
+    $('#aJenis').innerHTML = ref.jenis.map(j => '<option value="' + esc(j[0]) + '">' + esc(j[1]) + '</option>').join('');
+  }
+  if (editAju) return;  // mode ubah: perusahaan tujuan tidak berubah
+  const k = await api('kontraktor.list');
+  kon = user.kontraktor ? k[0] : null;
+  const ids = kon ? String(kon.Perusahaan_IDs).split(',').map(s => s.trim()) : [user.perusahaan];
+  $('#aPt').innerHTML = ref.perusahaan.filter(p => ids.includes(p.ID)).map(p => '<option value="' + esc(p.ID) + '">' + esc(p.Nama) + '</option>').join('');
+  $('#wPt').classList.toggle('hidden', ids.length < 2);
+}
+async function muatKon() {
+  const d = await api('kontraktor.list');
+  dataKon = d;
+  $('#tKon').innerHTML = tabel([['','ID',id => '<button class="lain" data-ek="' + esc(id) + '">Ubah</button>',1],['Kontraktor','Nama'],['No. IUJP','IUJP_No'],['IUJP berlaku s.d.','IUJP_Berlaku'],['Perusahaan','Perusahaan_IDs'],['Aktif','Aktif',a => a ? 'Ya' : 'Tidak']], d) || '<p class="kosong">Belum ada kontraktor.</p>';
+  const pts = ref.perusahaan.filter(p => user.peran === 'ADMIN_GROUP' || p.ID === user.perusahaan);
+  $('#kPt').innerHTML = pts.map(p => '<label class="cb"><input type="checkbox" value="' + esc(p.ID) + '"' + (pts.length === 1 ? ' checked' : '') + '> ' + esc(p.Nama) + '</label>').join('');
+}
+$('#fAju').onsubmit = async e => {
+  e.preventDefault(); $('#eAju').textContent = ''; $('#bAju').disabled = true;
+  const cek = {C:[],D:[],E:[],F:[]}, v = id => $('#' + id).value;
+  e.target.querySelectorAll('input[data-b]:checked').forEach(i => cek[i.dataset.b].push(i.value));
+  try {
+    const id = await api(editAju ? 'permits.update' : 'permits.create', {permitId:editAju, perusahaan:v('aPt'), jenis:v('aJenis'), project:v('aProj'), lokasi:v('aLok'), lat:v('aLat'), lng:v('aLng'),
+      jumlah:v('aJml'), tglMulai:v('aMul'), tglSelesai:v('aSel'), shift:v('aShift'), deskripsi:v('aDesk'), peralatan:v('aAlat'), cek});
+    const pid = editAju || id; resetAju(); bukaDok(pid);
+  } catch (err) { $('#eAju').textContent = err.message; }
+  $('#bAju').disabled = false;
+};
+$('#fKon').onsubmit = async e => {
+  e.preventDefault(); $('#eKon').textContent = ''; $('#bKon').disabled = true;
+  const pts = [...$('#kPt').querySelectorAll('input:checked')].map(i => i.value).join(',');
+  try {
+    const x = {nama:$('#kNama').value, iujp:$('#kIujp').value, berlaku:$('#kBer').value, perusahaan:pts, aktif:$('#kAktif').checked};
+    await api(editKon ? 'kontraktor.update' : 'kontraktor.save', editKon ? Object.assign({id:editKon}, x) : x); resetKon(); await muatKon();
+  }
+  catch (err) { $('#eKon').textContent = err.message; }
+  $('#bKon').disabled = false;
+};
+$('#fLogin').onsubmit = async e => {
+  e.preventDefault(); $('#eLogin').textContent = ''; $('#bLogin').disabled = true;
+  try {
+    const d = await api('login', {username:$('#un').value, password:$('#pw').value});
+    simpanToken(d.token); $('#pw').value = ''; await mulai(d.user);
+  } catch (err) { $('#eLogin').textContent = err.message; }
+  $('#bLogin').disabled = false;
+};
+$('#fUser').onsubmit = async e => {
+  e.preventDefault(); $('#eUser').textContent = ''; $('#bUser').disabled = true;
+  try {
+    await api(editUser ? 'users.update' : 'users.create', {aktif:$('#uAktif').checked, username:$('#uUn').value, nama:$('#uNama').value, password:$('#uPw').value, peran:$('#uPeran').value, perusahaan:$('#uPt').value, kontraktor:$('#uKon').value});
+    resetUser(); await muatUser();
+  } catch (err) { $('#eUser').textContent = err.message; }
+  $('#bUser').disabled = false;
+};
+$('#bKeluar').onclick = () => keluar(false);
+
+if (token) api('me').then(mulai).catch(() => keluar(false));
+</script>
+</body>
+</html>
