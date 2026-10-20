@@ -335,7 +335,7 @@ function buatPeta(id) {
   const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'});
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Tiles &copy; Esri'});
   const lapis = [sat], overlay = {};
-  if (ORTHO_URL) { const o = L.tileLayer(ORTHO_URL, {tms:ORTHO_TMS, minZoom:12, maxNativeZoom:18, maxZoom:20, bounds:ORTHO_BOUNDS, attribution:'Ortho Engineering'}); lapis.push(o); overlay['Ortho Engineering'] = o; }
+  if (ORTHO_URL) { const o = L.tileLayer(ORTHO_URL, {tms:ORTHO_TMS, minZoom:12, maxNativeZoom:19, maxZoom:20, bounds:ORTHO_BOUNDS, attribution:'Ortho Engineering'}); lapis.push(o); overlay['Ortho Engineering'] = o; }
   const m = L.map(id, {center:PUSAT, zoom:13, maxZoom:20, layers:lapis});
   L.control.layers({'Satelit':sat, 'Peta jalan':osm}, overlay).addTo(m); L.control.scale({imperial:false}).addTo(m);
   return m;
