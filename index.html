@@ -309,7 +309,7 @@ async function muatDash() {
 $('#dPt').onchange = $('#dHari').onchange = () => muatDash().catch(e => alert(e.message));
 $('#dDaftar').onclick = e => e.target.dataset.doc && bukaDok(e.target.dataset.doc);
 // ---------- Peta (Leaflet) ----------
-const ORTHO_URL = 'https://hsepriamanaya.github.io/izinkerjakhusus-priamanaya/tiles/Z{z}/{y}/{x}.jpg';
+const ORTHO_URL = 'https://https://hsepriamanaya.github.io/izinkerjakhusus-priamanaya/tiles/Z{z}/{y}/{x}.jpg';
 const ORTHO_BOUNDS = [[-3.7807, 103.5709], [-3.7163, 103.6642]];
 const ORTHO_TMS = false;  // Ubah ke true bila tile dibuat dengan skema TMS (sumbu Y terbalik) dan petanya tampak tidak cocok
 const WARNA = {PANAS:'#e4572e', RUANG_TERBATAS:'#7b2cbf', KETINGGIAN:'#1d7fd6', PENGGALIAN:'#8c5a2b', LISTRIK:'#f2c200', ISOLASI_ENERGI:'#2a9d8f', PENGANGKATAN:'#e07a00', LAINNYA:'#6c757d'};
