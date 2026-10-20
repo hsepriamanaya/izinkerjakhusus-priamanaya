@@ -313,6 +313,34 @@ const ORTHO_URL = 'https://hsepriamanaya.github.io/izinkerjakhusus-priamanaya/ti
 const ORTHO_BOUNDS = [[-3.7807, 103.5709], [-3.7163, 103.6642]];
 const PUSAT = [(ORTHO_BOUNDS[0][0] + ORTHO_BOUNDS[1][0]) / 2, (ORTHO_BOUNDS[0][1] + ORTHO_BOUNDS[1][1]) / 2];  // titik tengah area ortho
 const ORTHO_TMS = false;  // Ubah ke true bila tile dibuat dengan skema TMS (sumbu Y terbalik) dan petanya tampak tidak cocok
+const ORTHO_TILE = 256;   // Ukuran tile dalam piksel (ubah ke 512 bila tile Anda 512 px)
+const ORTHO_PUTIH = 240;  // Ambang putih: turunkan (mis. 230) bila masih ada sisa putih, naikkan (mis. 248) bila area terang ikut hilang
+// Layer ortho: piksel putih (latar JPG) dijadikan transparan
+const OrthoLayer = L.GridLayer.extend({
+  createTile(coords, done) {
+    const size = this.getTileSize(), tile = document.createElement('canvas');
+    tile.width = size.x; tile.height = size.y;
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const ctx = tile.getContext('2d', {willReadFrequently:true});
+      ctx.drawImage(img, 0, 0, size.x, size.y);
+      try {
+        const im = ctx.getImageData(0, 0, size.x, size.y), p = im.data, lo = ORTHO_PUTIH - 20;
+        for (let i = 0; i < p.length; i += 4) {
+          const m = Math.min(p[i], p[i + 1], p[i + 2]);  // kanal terendah: putih = tinggi di ketiga kanal
+          if (m > ORTHO_PUTIH) p[i + 3] = 0;                                  // putih -> transparan
+          else if (m > lo) p[i + 3] = Math.round((ORTHO_PUTIH - m) / 20 * 255);  // tepi dihaluskan
+        }
+        ctx.putImageData(im, 0, 0);
+      } catch (e) {}
+      done(null, tile);
+    };
+    img.onerror = () => done(null, tile);
+    const y = ORTHO_TMS ? (1 << coords.z) - 1 - coords.y : coords.y;
+    img.src = L.Util.template(ORTHO_URL, {z:coords.z, x:coords.x, y});
+    return tile;
+  }
+});
 const WARNA = {PANAS:'#e4572e', RUANG_TERBATAS:'#7b2cbf', KETINGGIAN:'#1d7fd6', PENGGALIAN:'#8c5a2b', LISTRIK:'#f2c200', ISOLASI_ENERGI:'#2a9d8f', PENGANGKATAN:'#e07a00', LAINNYA:'#6c757d'};
 const UTM = (() => {  // WGS84, UTM zona 48 Selatan
   const a = 6378137, e2 = (1 / 298.257223563) * (2 - 1 / 298.257223563), ep2 = e2 / (1 - e2), k0 = .9996, l0 = 105 * Math.PI / 180, r = x => x * Math.PI / 180;
@@ -336,7 +364,7 @@ function buatPeta(id) {
   const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'});
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Tiles &copy; Esri'});
   const lapis = [sat], overlay = {};
-  if (ORTHO_URL) { const o = L.tileLayer(ORTHO_URL, {tms:ORTHO_TMS, minZoom:12, maxNativeZoom:19, maxZoom:20, bounds:ORTHO_BOUNDS, attribution:'Ortho Engineering'}); lapis.push(o); overlay['Ortho Engineering'] = o; }
+  if (ORTHO_URL) { const o = new OrthoLayer({tileSize:ORTHO_TILE, minZoom:12, maxNativeZoom:19, maxZoom:20, bounds:ORTHO_BOUNDS, attribution:'Ortho Engineering'}); lapis.push(o); overlay['Ortho Engineering'] = o; }
   const m = L.map(id, {center:PUSAT, zoom:13, maxZoom:20, layers:lapis});
   L.control.layers({'Satelit':sat, 'Peta jalan':osm}, overlay).addTo(m); L.control.scale({imperial:false}).addTo(m);
   return m;
