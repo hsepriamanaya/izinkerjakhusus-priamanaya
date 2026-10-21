@@ -97,34 +97,54 @@ button svg,nav svg{pointer-events:none}
   .lg-form{align-items:start;padding-top:26px}
 }
 
-/* ---------- Header dan navigasi ---------- */
-header{position:sticky;top:0;z-index:1100;background:var(--panel);border-bottom:1px solid var(--line)}
-.bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:10px 20px;max-width:1040px;margin:0 auto}
-.brand{display:flex;align-items:center;gap:11px}
-.brand .mark{width:36px;height:36px}
-.brand .mark:has(img){width:auto;min-width:40px;height:42px;padding:4px 8px;box-shadow:none;border:1px solid var(--line)}
-.brand .mark img{height:32px;max-width:130px}
-.brand strong{font-family:var(--fh);font-size:1.05rem;display:block;line-height:1.15}
-.brand small,.who small{display:block;color:var(--muted);font-size:.8rem;line-height:1.3}
-.who{display:flex;align-items:center;gap:12px}
-.who strong{display:block;line-height:1.25;font-size:.95rem}
-.av{width:36px;height:36px;border-radius:50%;background:var(--hv);color:#14232b;display:grid;place-items:center;font-family:var(--fh);font-weight:700;font-size:1.05rem;flex:none}
-.who button{min-height:38px;padding:4px 14px;margin:0}
-nav{display:flex;gap:2px;max-width:1040px;margin:0 auto;padding:0 12px;overflow-x:auto;scrollbar-width:none}
+/* ---------- Rangka aplikasi: menu samping (PC) dan bilah bawah (HP) ---------- */
+:root{--side:#0c2d40;--side-mut:#9db2bf}
+@media (prefers-color-scheme:dark){:root{--side:#0a171e}}
+#app{display:grid;grid-template-columns:var(--sw,252px) minmax(0,1fr);min-height:100vh;transition:grid-template-columns .25s cubic-bezier(.2,.7,.2,1)}
+#side{position:sticky;top:0;align-self:start;height:100vh;display:flex;flex-direction:column;background:var(--side);color:#fff;overflow:hidden;z-index:1200}
+#side .stripe{flex:none}
+.side-brand{display:flex;align-items:center;gap:12px;padding:20px 16px 16px;min-height:84px}
+.side-brand strong{font-family:var(--fh);font-size:1.08rem;display:block;line-height:1.15;white-space:nowrap}
+.side-brand small{display:block;color:var(--side-mut);font-size:.78rem;line-height:1.3;white-space:nowrap}
+.side-brand .mark:has(img){height:48px}
+.side-brand .mark img{height:32px}
+nav{display:flex;flex-direction:column;gap:4px;padding:10px 12px;flex:1;overflow-y:auto;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
-nav button{position:relative;min-height:48px;background:none;color:var(--muted);border:0;border-radius:0;padding:8px 14px;font-weight:500;white-space:nowrap;margin:0}
-nav button:not(:disabled):hover{filter:none;color:var(--ink)}
-nav button::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--hv);transform:scaleX(0);transition:transform .25s cubic-bezier(.2,.7,.2,1)}
-nav button[aria-current=true]{color:var(--ink);font-weight:600}
-nav button[aria-current=true]::after{transform:scaleX(1)}
-
-/* ---------- Layout utama ---------- */
-main{max-width:1040px;margin:20px auto 48px;padding:0 20px}
+nav button{position:relative;display:flex;align-items:center;justify-content:flex-start;gap:12px;width:100%;min-height:46px;padding:8px 14px;margin:0;background:none;color:var(--side-mut);border:0;border-radius:8px;font-weight:500;white-space:nowrap;text-align:left}
+nav button:not(:disabled):hover{filter:none;background:rgba(255,255,255,.07);color:#fff}
+nav button[aria-current=true]{background:rgba(255,255,255,.11);color:#fff;font-weight:600}
+nav button::before{content:"";position:absolute;left:-12px;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:var(--hv);transform:scaleY(0);transition:transform .2s}
+nav button[aria-current=true]::before{transform:scaleY(1)}
+nav svg{flex:none}
+.side-foot{padding:10px 12px 14px;border-top:1px solid rgba(255,255,255,.1)}
+#bSisi{width:100%;justify-content:flex-start;gap:12px;min-height:42px;padding:8px 14px;margin:0;background:none;color:var(--side-mut);border:0;font-weight:500}
+#bSisi:not(:disabled):hover{filter:none;background:rgba(255,255,255,.07);color:#fff}
+#bSisi svg{transition:transform .25s}
+#content{min-width:0;display:flex;flex-direction:column;min-height:100vh}
+#top{position:sticky;top:0;z-index:1200;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 24px;min-height:64px;background:var(--panel);border-bottom:1px solid var(--line)}
+.top-l{display:flex;align-items:center;gap:12px;min-width:0}
+#judulHal{font-size:1.4rem;margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-brand{display:none!important}
+.top-brand:has(img){height:40px;padding:4px 8px;box-shadow:none;border:1px solid var(--line)}
+.top-brand img{height:30px}
+.who{display:flex;align-items:center;gap:12px;min-width:0}
+.who>div{min-width:0}
+.who strong{display:block;line-height:1.25;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{display:block;color:var(--muted);font-size:.8rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:440px}
+.av{width:36px;height:36px;border-radius:50%;background:var(--hv);color:#14232b;display:grid;place-items:center;font-family:var(--fh);font-weight:700;font-size:1.05rem;flex:none}
+.who button{min-height:38px;padding:4px 14px;margin:0;flex:none}
+.lg-tag{font-family:var(--fh);font-weight:600;font-size:1.15rem;letter-spacing:.01em}
+main{width:100%;max-width:1900px;margin:0 auto;padding:22px 24px 48px;flex:1}
 #vDash,#vKon,#vUser{display:flex;flex-direction:column;gap:18px}
+#vDash>.card:first-child{padding:14px 18px}
+#mapDash{height:clamp(360px,58vh,600px)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;box-shadow:var(--sh)}
 main>*:not(.hidden){animation:masuk .32s cubic-bezier(.2,.7,.2,1) both}
 #app:not(.hidden){animation:muncul .45s both}
 .hidden{display:none!important}
+.wiup-ctl{background:#fff;color:#14232b;padding:7px 11px;border-radius:6px;box-shadow:0 1px 5px rgba(0,0,0,.35);font-size:.85rem;line-height:1.2}
+.wiup-ctl label{display:flex!important;align-items:center;gap:7px;cursor:pointer;white-space:nowrap}
+.wiup-ctl input{width:16px!important;height:16px;accent-color:#0f3d56}
 
 /* ---------- Tabel ---------- */
 .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
@@ -176,16 +196,38 @@ h2 .badge{margin-left:8px;font-family:var(--fb)}
 @keyframes toastMasuk{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}html{scroll-behavior:auto}}
 
-/* ---------- Layar kecil ---------- */
+/* ---------- Layar lebar dan kecil ---------- */
+@media (min-width:1400px){#dKpi{grid-template-columns:repeat(6,1fr)}}
+@media (min-width:901px){
+  #app.ringkas{--sw:72px}
+  #app.ringkas .side-brand div,#app.ringkas nav button span,#app.ringkas #bSisi span{display:none}
+  #app.ringkas .side-brand{justify-content:center;padding-left:0;padding-right:0}
+  #app.ringkas .side-brand .mark:has(img){min-width:0;width:48px;padding:7px}
+  #app.ringkas .side-brand .mark img{width:34px;height:34px;object-fit:cover;object-position:left center}
+  #app.ringkas nav button,#app.ringkas #bSisi{justify-content:center;padding:8px}
+  #app.ringkas #bSisi svg{transform:rotate(180deg)}
+}
+@media (max-width:900px){
+  #app{grid-template-columns:1fr}
+  #side{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;flex-direction:row;border-top:1px solid rgba(255,255,255,.14);padding-bottom:env(safe-area-inset-bottom)}
+  #side .stripe,.side-brand,.side-foot{display:none}
+  nav{flex-direction:row;padding:0;gap:0;overflow:visible}
+  nav button{flex:1;min-width:0;flex-direction:column;justify-content:center;gap:3px;min-height:62px;padding:8px 4px;border-radius:0;font-size:.74rem;text-align:center}
+  nav button span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  nav button::before{left:22%;right:22%;top:0;bottom:auto;width:auto;height:3px;border-radius:0 0 3px 3px;transform:scaleX(0)}
+  nav button[aria-current=true]::before{transform:scaleX(1)}
+  nav button[aria-current=true]{background:none;color:var(--hv)}
+  #top{padding:8px 14px;min-height:58px}
+  .top-brand{display:grid!important}
+  #judulHal,.who small{display:none}
+  main{padding:14px 12px calc(86px + env(safe-area-inset-bottom))}
+  #toasts{bottom:86px}
+}
 @media (max-width:640px){
-  main{padding:0 12px;margin-top:14px}
-  .card{padding:16px}
-  .bar{padding:10px 14px}
-  .brand div{display:none}
   #dKpi{grid-template-columns:repeat(2,1fr)}
+  .card{padding:16px}
   .kpi{padding:14px}
   .kpi b{font-size:2rem}
-  .who small{max-width:140px}
 }
 </style>
 </head>
@@ -203,7 +245,7 @@ h2 .badge{margin-left:8px;font-family:var(--fb)}
         <ellipse cx="90" cy="110" rx="46" ry="30"/><ellipse cx="90" cy="110" rx="100" ry="66"/><ellipse cx="90" cy="110" rx="154" ry="102"/><ellipse cx="90" cy="110" rx="208" ry="138"/><ellipse cx="90" cy="110" rx="262" ry="174"/>
       </g>
     </svg>
-    <div class="lg-logo"><span class="mark"><img src="https://lh3.googleusercontent.com/d/1dKSdWBIHzzWDTfnquufOammtyuimcZ7A" referrerpolicy="no-referrer" alt="Logo Priamanaya Group" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='logo.png'}else this.remove()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>Priamanaya Group</div>
+    <div class="lg-logo"><span class="mark"><img src="https://lh3.googleusercontent.com/d/1dKSdWBIHzzWDTfnquufOammtyuimcZ7A" referrerpolicy="no-referrer" alt="Logo Priamanaya Group" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='logo.png'}else this.remove()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="lg-tag">#Integrated Mining &amp; Energy</span></div>
     <div>
       <h2>Izin kerja khusus, tercatat dan terpantau.</h2>
       <p>Ajukan, setujui, dan pantau izin kerja berisiko tinggi di satu tempat, dari pengajuan sampai pekerjaan ditutup.</p>
@@ -232,18 +274,21 @@ h2 .badge{margin-left:8px;font-family:var(--fb)}
 </section>
 
 <section id="app" class="hidden">
-  <header>
+  <aside id="side">
     <div class="stripe"></div>
-    <div class="bar">
-      <div class="brand"><span class="mark"><img src="https://lh3.googleusercontent.com/d/1dKSdWBIHzzWDTfnquufOammtyuimcZ7A" referrerpolicy="no-referrer" alt="Logo Priamanaya Group" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='logo.png'}else this.remove()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><div><strong>Izin Kerja Khusus</strong><small>Priamanaya Group</small></div></div>
+    <div class="side-brand"><span class="mark"><img src="https://lh3.googleusercontent.com/d/1dKSdWBIHzzWDTfnquufOammtyuimcZ7A" referrerpolicy="no-referrer" alt="Logo Priamanaya Group" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='logo.png'}else this.remove()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><div><strong>Izin Kerja Khusus</strong><small>#Integrated Mining &amp; Energy</small></div></div>
+    <nav id="nav" aria-label="Menu utama"></nav>
+    <div class="side-foot"><button id="bSisi" type="button" title="Ciutkan atau perluas menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg><span>Ciutkan menu</span></button></div>
+  </aside>
+  <div id="content">
+    <header id="top">
+      <div class="top-l"><span class="mark top-brand"><img src="https://lh3.googleusercontent.com/d/1dKSdWBIHzzWDTfnquufOammtyuimcZ7A" referrerpolicy="no-referrer" alt="Logo Priamanaya Group" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='logo.png'}else this.remove()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><h1 id="judulHal"></h1></div>
       <div class="who">
         <span class="av" id="avatar" aria-hidden="true"></span>
         <div><strong id="nama"></strong><small id="info"></small></div>
         <button class="lain" id="bKeluar" type="button">Keluar</button>
       </div>
-    </div>
-    <nav id="nav"></nav>
-  </header>
+    </header>
   <main>
     <div id="vDash" class="hidden">
       <div class="card"><div class="grid">
@@ -252,7 +297,7 @@ h2 .badge{margin-left:8px;font-family:var(--fb)}
       </div></div>
       <div id="dKpi"></div>
       <div class="card"><h2>Peta pekerjaan yang sedang berlaku</h2>
-        <div id="mapDash" style="height:400px;border-radius:8px"></div>
+        <div id="mapDash"></div>
         <p class="sub" id="infoPetaDash" style="margin-top:12px"></p><p id="legendaDash"></p>
         <button class="lain" id="bKml" type="button">Ekspor KML</button></div>
       <div id="dGrafik"></div>
@@ -328,6 +373,7 @@ h2 .badge{margin-left:8px;font-family:var(--fb)}
       <div class="card"><h2>Pengguna</h2><div id="tUser"></div></div>
     </div>
   </main>
+  </div>
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -420,10 +466,12 @@ async function muatUser() {
   $('#tUser').innerHTML = tabel([['','Username',n => '<button class="lain" data-eu="' + esc(n) + '">Ubah</button>',1],['Username','Username'],['Nama','Nama'],['Peran','Peran',p => LABEL[p] || p],['Kontraktor','Kontraktor_ID',(id, b) => esc(b.Peran !== 'PENGAWAS' ? '-' : ((k.find(x => x.ID === id) || {}).Nama || 'Internal')),1],['Perusahaan','Perusahaan_ID',p => p || 'Group'],['Aktif','Aktif',badgeYa,1]], d);
 }
 
+const JUDUL = {Dash:'Dashboard',Izin:'Izin kerja',Aju:'Ajukan izin kerja',Dok:'Detail izin',Kon:'Kontraktor',User:'Pengguna'};
 function tampil(v) {
   if (v !== 'Aju' && editAju) resetAju();
   ['Dash','Izin','Aju','Dok','Kon','User'].forEach(n => $('#v' + n).classList.toggle('hidden', n !== v));
-  document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === v));
+  document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.v === (v === 'Dok' ? 'Izin' : v)));
+  $('#judulHal').textContent = JUDUL[v];
   window.scrollTo({top:0, behavior:'smooth'});
   ({Dash:muatDash,Izin:muatIzin,Aju:muatAju,Dok:muatDok,Kon:muatKon,User:muatUser}[v])().catch(e => alert(e.message));
 }
@@ -443,7 +491,7 @@ async function mulai(d) {
     $('#uPeran').innerHTML = ref.peran.filter(p => d.peran === 'ADMIN_GROUP' || ['HSE','KTT','PENGAWAS'].includes(p)).map(p => '<option value="' + p + '">' + esc(LABEL[p]) + '</option>').join('');
     $('#uPt').innerHTML = ref.perusahaan.filter(p => d.peran === 'ADMIN_GROUP' || p.ID === d.perusahaan).map(p => '<option value="' + esc(p.ID) + '">' + esc(p.Nama) + '</option>').join('');
   }
-  $('#nav').innerHTML = menu.map(m => '<button type="button" data-v="' + m[0] + '">' + ik(m[0], 18) + '<span>' + m[1] + '</span></button>').join('');
+  $('#nav').innerHTML = menu.map(m => '<button type="button" data-v="' + m[0] + '" title="' + m[1] + '">' + ik(m[0], 20) + '<span>' + m[1] + '</span></button>').join('');
   $('#nav').onclick = e => { const b = e.target.closest('button'), v = b && b.dataset.v; if (v) { if (v === 'Aju') resetAju(); tampil(v); } };
   const lg = $('#login');
   if (!lg.classList.contains('hidden')) { lg.classList.add('out'); await sleep(260); lg.classList.add('hidden'); lg.classList.remove('out'); }
@@ -538,6 +586,68 @@ const PUSAT = [(ORTHO_BOUNDS[0][0] + ORTHO_BOUNDS[1][0]) / 2, (ORTHO_BOUNDS[0][1
 const ORTHO_TMS = false;  // Ubah ke true bila tile dibuat dengan skema TMS (sumbu Y terbalik) dan petanya tampak tidak cocok
 const ORTHO_TILE = 256;   // Ukuran tile dalam piksel (ubah ke 512 bila tile Anda 512 px)
 const ORTHO_PUTIH = 240;  // Ambang putih: turunkan (mis. 230) bila masih ada sisa putih, naikkan (mis. 248) bila area terang ikut hilang
+// ---------- Garis WIUP: tampilkan atau sembunyikan ----------
+// Mode 1 (bawaan): garis WIUP menyatu di dalam tiles JPG, jadi disembunyikan dengan menimpa piksel berwarna garis memakai warna sekitarnya (hasil perkiraan).
+// Mode 2 (akurat): isi WIUP_GEOJSON dengan file batas WIUP (GeoJSON, WGS84) dan gunakan tiles tanpa garis; garis digambar sebagai vektor.
+const WIUP_GEOJSON = '';  // mis. 'wiup.geojson'
+const WIUP_WARNA = [[205,60,205,85],[35,35,190,75],[235,140,130,45]];  // [R,G,B,toleransi]: magenta, biru, salmon (perkiraan warna garis pada tiles; sesuaikan bila perlu)
+let wiupTampil = true;
+try { wiupTampil = localStorage.getItem('wiup') !== '0'; } catch (e) {}
+function hapusGaris(p, w, h) {
+  const n = w * h, tandai = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = i * 4; if (!p[o + 3]) continue;
+    for (const c of WIUP_WARNA) {
+      const dr = p[o] - c[0], dg = p[o + 1] - c[1], db = p[o + 2] - c[2];
+      if (dr * dr + dg * dg + db * db < c[3] * c[3]) { tandai[i] = 1; break; }
+    }
+  }
+  const m = tandai.slice();
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (tandai[y * w + x])
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h) m[yy * w + xx] = 1; }
+  const src = new Uint8ClampedArray(p), arah = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; if (!m[i]) continue;
+    let r = 0, g = 0, b = 0, k = 0;
+    for (const a of arah) for (let s = 1; s <= 8; s++) {
+      const xx = x + a[0] * s, yy = y + a[1] * s; if (xx < 0 || yy < 0 || xx >= w || yy >= h) break;
+      const j = yy * w + xx; if (m[j] || !src[j * 4 + 3]) continue;
+      r += src[j * 4]; g += src[j * 4 + 1]; b += src[j * 4 + 2]; k++; break;
+    }
+    const o = i * 4;
+    if (k) { p[o] = r / k; p[o + 1] = g / k; p[o + 2] = b / k; } else p[o + 3] = 0;
+  }
+}
+const PETA = [];
+let wiupData = null;
+const muatWiup = () => wiupData || (wiupData = fetch(WIUP_GEOJSON).then(r => { if (!r.ok) throw new Error('x'); return r.json(); }).catch(() => null));
+function terapkanWiup(rec) {
+  if (WIUP_GEOJSON) {
+    muatWiup().then(d => {
+      if (!d) return;
+      if (!rec.vek) rec.vek = L.geoJSON(d, {style:{color:'#e91e8c', weight:2.5, fill:false}, interactive:false});
+      if (wiupTampil) rec.vek.addTo(rec.m); else rec.vek.remove();
+    });
+  } else if (rec.ortho) rec.ortho.redraw();
+}
+function aturWiup(v) {
+  wiupTampil = v;
+  try { localStorage.setItem('wiup', v ? '1' : '0'); } catch (e) {}
+  document.querySelectorAll('.wiup-cb').forEach(c => c.checked = v);
+  PETA.forEach(terapkanWiup);
+}
+function pasangWiup(m, ortho) {
+  const rec = {m, ortho, vek:null}; PETA.push(rec);
+  const Kontrol = L.Control.extend({onAdd() {
+    const d = L.DomUtil.create('div', 'wiup-ctl leaflet-control');
+    d.innerHTML = '<label><input type="checkbox" class="wiup-cb"> Garis WIUP</label>';
+    L.DomEvent.disableClickPropagation(d);
+    const cb = d.querySelector('input'); cb.checked = wiupTampil; cb.onchange = () => aturWiup(cb.checked);
+    return d;
+  }});
+  new Kontrol({position:'topleft'}).addTo(m);
+  if (WIUP_GEOJSON) terapkanWiup(rec);
+}
 // Layer ortho: piksel putih (latar JPG) dijadikan transparan
 const OrthoLayer = L.GridLayer.extend({
   createTile(coords, done) {
@@ -554,6 +664,7 @@ const OrthoLayer = L.GridLayer.extend({
           if (m > ORTHO_PUTIH) p[i + 3] = 0;                                  // putih -> transparan
           else if (m > lo) p[i + 3] = Math.round((ORTHO_PUTIH - m) / 20 * 255);  // tepi dihaluskan
         }
+        if (!WIUP_GEOJSON && !wiupTampil) hapusGaris(p, size.x, size.y);
         ctx.putImageData(im, 0, 0);
       } catch (e) {}
       done(null, tile);
@@ -587,9 +698,11 @@ function buatPeta(id) {
   const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'});
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Tiles &copy; Esri'});
   const lapis = [sat], overlay = {};
-  if (ORTHO_URL) { const o = new OrthoLayer({tileSize:ORTHO_TILE, minZoom:12, maxNativeZoom:19, maxZoom:20, bounds:ORTHO_BOUNDS, attribution:'Ortho Engineering'}); lapis.push(o); overlay['Ortho Engineering'] = o; }
+  let o = null;
+  if (ORTHO_URL) { o = new OrthoLayer({tileSize:ORTHO_TILE, minZoom:12, maxNativeZoom:19, maxZoom:20, bounds:ORTHO_BOUNDS, attribution:'Ortho Engineering'}); lapis.push(o); overlay['Ortho Engineering'] = o; }
   const m = L.map(id, {center:PUSAT, zoom:13, maxZoom:20, layers:lapis});
   L.control.layers({'Satelit':sat, 'Peta jalan':osm}, overlay).addTo(m); L.control.scale({imperial:false}).addTo(m);
+  pasangWiup(m, o);
   return m;
 }
 const titikGaya = w => ({radius:9, color:'#14232b', weight:2, fillColor:w || '#f5c400', fillOpacity:.95});
@@ -802,6 +915,12 @@ $('#fUser').onsubmit = async e => {
   $('#bUser').disabled = false;
 };
 $('#bKeluar').onclick = () => keluar(false);
+try { if (localStorage.getItem('ringkas') === '1') $('#app').classList.add('ringkas'); } catch (e) {}
+$('#bSisi').onclick = () => {
+  const r = $('#app').classList.toggle('ringkas');
+  try { localStorage.setItem('ringkas', r ? '1' : '0'); } catch (e) {}
+  setTimeout(() => [petaDash, petaAju, petaDok].forEach(m => m && m.invalidateSize()), 320);
+};
 
 if (token) { $('#login').classList.add('hidden'); api('me').then(mulai).catch(() => keluar(false)); }
 </script>
