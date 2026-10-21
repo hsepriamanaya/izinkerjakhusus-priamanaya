@@ -196,6 +196,23 @@ h2 .badge{margin-left:8px;font-family:var(--fb)}
 @keyframes toastMasuk{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}html{scroll-behavior:auto}}
 
+/* ---------- Penyempurnaan menu samping ---------- */
+.side-brand{flex-direction:column;align-items:flex-start;gap:10px;padding:18px 16px 14px;min-height:0}
+.side-brand .mark{max-width:100%}
+.side-brand .mark:has(img){height:52px}
+.side-brand strong{white-space:normal;font-size:1.05rem}
+.side-brand small{white-space:normal;font-size:.8rem}
+nav button:focus-visible,#bSisi:focus-visible,#side .who button:focus-visible{outline-offset:-3px}
+.side-foot{display:flex;flex-direction:column;gap:6px}
+#side .who{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center;padding:8px 4px 4px}
+#side .who strong{color:#fff;white-space:normal;overflow:visible;font-size:.92rem}
+#side .who small{color:var(--side-mut);white-space:normal;overflow:visible;max-width:none;font-size:.78rem}
+#side .who button{grid-column:1/-1;width:100%;min-height:40px;margin:4px 0 0;background:rgba(255,255,255,.07);color:#fff;border:1px solid rgba(255,255,255,.16)}
+#side .who button:not(:disabled):hover{filter:none;background:rgba(255,255,255,.14)}
+#bKeluar svg{flex:none}
+#top{justify-content:flex-start}
+#slotTop:empty{display:none}
+
 /* ---------- Layar lebar dan kecil ---------- */
 @media (min-width:1400px){#dKpi{grid-template-columns:repeat(6,1fr)}}
 @media (min-width:901px){
@@ -228,6 +245,21 @@ h2 .badge{margin-left:8px;font-family:var(--fb)}
   .card{padding:16px}
   .kpi{padding:14px}
   .kpi b{font-size:2rem}
+}
+@media (min-width:901px){
+  #app.ringkas .side-brand{align-items:center;padding:16px 0 12px}
+  #app.ringkas #side .who{grid-template-columns:1fr;justify-items:center;padding:8px 0 4px}
+  #app.ringkas #side .who>div,#app.ringkas #bKeluar span{display:none}
+  #app.ringkas #side .who button{width:44px;padding:0;margin:4px auto 0}
+}
+@media (max-width:900px){
+  #slotTop{margin-left:auto}
+  #top .who{gap:10px}
+  #top .who button{min-height:38px;padding:4px 12px}
+}
+@media (max-width:640px){
+  #top .who>div,#top #bKeluar span{display:none}
+  #top .who button{padding:0;width:40px}
 }
 </style>
 </head>
@@ -278,16 +310,16 @@ h2 .badge{margin-left:8px;font-family:var(--fb)}
     <div class="stripe"></div>
     <div class="side-brand"><span class="mark"><img src="https://lh3.googleusercontent.com/d/1dKSdWBIHzzWDTfnquufOammtyuimcZ7A" referrerpolicy="no-referrer" alt="Logo Priamanaya Group" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='logo.png'}else this.remove()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><div><strong>Izin Kerja Khusus</strong><small>#Integrated Mining &amp; Energy</small></div></div>
     <nav id="nav" aria-label="Menu utama"></nav>
-    <div class="side-foot"><button id="bSisi" type="button" title="Ciutkan atau perluas menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg><span>Ciutkan menu</span></button></div>
+    <div class="side-foot"><div id="slotSisi"><div class="who">
+          <span class="av" id="avatar" aria-hidden="true"></span>
+          <div><strong id="nama"></strong><small id="info"></small></div>
+          <button class="lain" id="bKeluar" type="button" title="Keluar" aria-label="Keluar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Keluar</span></button>
+        </div></div><button id="bSisi" type="button" title="Ciutkan atau perluas menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg><span>Ciutkan menu</span></button></div>
   </aside>
   <div id="content">
     <header id="top">
       <div class="top-l"><span class="mark top-brand"><img src="https://lh3.googleusercontent.com/d/1dKSdWBIHzzWDTfnquufOammtyuimcZ7A" referrerpolicy="no-referrer" alt="Logo Priamanaya Group" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='logo.png'}else this.remove()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><h1 id="judulHal"></h1></div>
-      <div class="who">
-        <span class="av" id="avatar" aria-hidden="true"></span>
-        <div><strong id="nama"></strong><small id="info"></small></div>
-        <button class="lain" id="bKeluar" type="button">Keluar</button>
-      </div>
+      <div id="slotTop"></div>
     </header>
   <main>
     <div id="vDash" class="hidden">
@@ -590,32 +622,47 @@ const ORTHO_PUTIH = 240;  // Ambang putih: turunkan (mis. 230) bila masih ada si
 // Mode 1 (bawaan): garis WIUP menyatu di dalam tiles JPG, jadi disembunyikan dengan menimpa piksel berwarna garis memakai warna sekitarnya (hasil perkiraan).
 // Mode 2 (akurat): isi WIUP_GEOJSON dengan file batas WIUP (GeoJSON, WGS84) dan gunakan tiles tanpa garis; garis digambar sebagai vektor.
 const WIUP_GEOJSON = '';  // mis. 'wiup.geojson'
-const WIUP_WARNA = [[205,60,205,85],[35,35,190,75],[235,140,130,45]];  // [R,G,B,toleransi]: magenta, biru, salmon (perkiraan warna garis pada tiles; sesuaikan bila perlu)
 let wiupTampil = true;
 try { wiupTampil = localStorage.getItem('wiup') !== '0'; } catch (e) {}
+const WIUP_PEKA = 1;  // kepekaan: lebih kecil (mis. 0.8) = lebih agresif menghapus garis, lebih besar (mis. 1.3) = lebih hati-hati
+// Mengenali garis WIUP dari warnanya (biru, magenta, salmon) DAN karena ia tipis: garis menonjol dibanding piksel di kedua sisinya,
+// sedangkan batas antarwilayah (hanya satu sisi berbeda), kolam, atau lahan luas tidak ikut terhapus. Piksel garis diisi dari warna tetangganya.
 function hapusGaris(p, w, h) {
-  const n = w * h, tandai = new Uint8Array(n);
+  const n = w * h, k = WIUP_PEKA, A = new Float32Array(n), C = new Float32Array(n), M = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const o = i * 4; if (!p[o + 3]) continue;
-    for (const c of WIUP_WARNA) {
-      const dr = p[o] - c[0], dg = p[o + 1] - c[1], db = p[o + 2] - c[2];
-      if (dr * dr + dg * dg + db * db < c[3] * c[3]) { tandai[i] = 1; break; }
-    }
+    const o = i * 4, r = p[o], g = p[o + 1], b = p[o + 2];
+    A[i] = r - g; C[i] = b - (r + g) / 2; M[i] = Math.min(r - g, b - g);
   }
-  const m = tandai.slice();
+  const arah = [[1,0,1],[0,1,1],[1,1,1.6],[1,-1,1.6]], jarak = [4, 7];  // diagonal dibuat lebih ketat agar sudut lahan tidak dikira garis
+  const rid = (V, x, y) => {  // seberapa menonjol piksel dibanding kedua sisinya (kiri-kanan, atas-bawah, atau diagonal)
+    const v = V[y * w + x]; let best = -1e9;
+    for (const d of arah) for (const s of jarak) {
+      const x1 = x - d[0] * s, y1 = y - d[1] * s, x2 = x + d[0] * s, y2 = y + d[1] * s;
+      if (x1 < 0 || y1 < 0 || x2 < 0 || y2 < 0 || x1 >= w || x2 >= w || y1 >= h || y2 >= h) continue;
+      const r = Math.min(v - V[y1 * w + x1], v - V[y2 * w + x2]) / d[2]; if (r > best) best = r;
+    }
+    return best;
+  };
+  const tandai = new Uint8Array(n);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, o = i * 4; if (!p[o + 3]) continue;
+    if ((C[i] > 22 * k && rid(C, x, y) > 20 * k) ||                                              // biru
+        (M[i] > 30 * k && rid(M, x, y) > 25 * k) ||                                              // magenta atau ungu
+        (p[o] > 195 && A[i] > 55 * k && p[o + 2] - p[o + 1] > -30 && rid(A, x, y) > 28 * k)) tandai[i] = 1;  // salmon atau merah muda
+  }
+  const m = new Uint8Array(n);  // perlebar 2 piksel agar tepi garis yang pudar ikut terhapus
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (tandai[y * w + x])
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h) m[yy * w + xx] = 1; }
-  const src = new Uint8ClampedArray(p), arah = [[1,0],[-1,0],[0,1],[0,-1]];
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h) m[yy * w + xx] = 1; }
+  const src = new Uint8ClampedArray(p), tetangga = [[1,0],[-1,0],[0,1],[0,-1]];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x; if (!m[i]) continue;
-    let r = 0, g = 0, b = 0, k = 0;
-    for (const a of arah) for (let s = 1; s <= 8; s++) {
+    let r = 0, g = 0, b = 0, bobot = 0;
+    for (const a of tetangga) for (let s = 1; s <= 14; s++) {
       const xx = x + a[0] * s, yy = y + a[1] * s; if (xx < 0 || yy < 0 || xx >= w || yy >= h) break;
       const j = yy * w + xx; if (m[j] || !src[j * 4 + 3]) continue;
-      r += src[j * 4]; g += src[j * 4 + 1]; b += src[j * 4 + 2]; k++; break;
+      const wt = 1 / s; r += src[j * 4] * wt; g += src[j * 4 + 1] * wt; b += src[j * 4 + 2] * wt; bobot += wt; break;
     }
-    const o = i * 4;
-    if (k) { p[o] = r / k; p[o + 1] = g / k; p[o + 2] = b / k; } else p[o + 3] = 0;
+    if (bobot) { const o = i * 4; p[o] = r / bobot; p[o + 1] = g / bobot; p[o + 2] = b / bobot; }
   }
 }
 const PETA = [];
@@ -915,6 +962,9 @@ $('#fUser').onsubmit = async e => {
   $('#bUser').disabled = false;
 };
 $('#bKeluar').onclick = () => keluar(false);
+const mqHP = window.matchMedia('(max-width:900px)');
+const tempatkanAkun = () => $(mqHP.matches ? '#slotTop' : '#slotSisi').appendChild($('.who'));
+mqHP.addEventListener('change', tempatkanAkun); tempatkanAkun();
 try { if (localStorage.getItem('ringkas') === '1') $('#app').classList.add('ringkas'); } catch (e) {}
 $('#bSisi').onclick = () => {
   const r = $('#app').classList.toggle('ringkas');
